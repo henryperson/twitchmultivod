@@ -2,31 +2,85 @@ import React from 'react';
 import logo from './logo.svg';
 import './App.css';
 import ReactPlayer from 'react-player/twitch'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPlay, faPause, faRedo, faUndo, faAngleUp, faAngleDown, faTimes } from '@fortawesome/free-solid-svg-icons'
 
-const headerHeight = 40
-const footerHeight = 20
 const minHeight = 300
 const defaultVolume = .5
 const progressInterval = 1000
+const twitchPurple = "#9147ff"
 
 const style= {
-  bar: {
+  bar: showBar => ({
     background: "#333333",
+    height: showBar ? 52 : 0,
+    display: showBar ? "flex" : "none",
+    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+  }),
+  buttonContainer: {
+    display: "flex",
+    alignItems: "center",
   },
-  button: {
-    background: "#bdbdbd"
-  },
+  button: isActive => ({
+    background: "#bdbdbd",
+    color: "#2b2b2b",
+    padding: "1px 5px",
+    fontSize: "13px",
+    borderRadius: "2px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    pointer: "cursor",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    MsUserSelect: "none",
+    height: "26px",
+    boxShadow: isActive ? `inset 1px 1px 3px ${twitchPurple}, inset -1px -1px 3px ${twitchPurple}` : "",
+  }),
   link: {
     color: "#bdbdbd",
     textDecoration: "none",
   },
+  control: {
+    margin: "9px",
+    color: "#bdbdbd",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    MsUserSelect: "none",
+  },
+  playPause: {
+    width: "28px",
+    height: "28px",
+  },
+  seek: {
+    width: "18px",
+    height: "18px",
+  },
+  angle: barShown => ({
+    width: "20px",
+    height: "20px",
+    margin: "9px 9px",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    MsUserSelect: "none",
+    borderRadius: "4px",
+    padding: "7px",
+    color: barShown ? "black" : "white",
+    position: "absolute",
+    right: 0,
+  }),
 }
 
+const durationRE = new RegExp(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/)
+const videoIdRE = new RegExp(/^(\d\d\d\d\d\d\d\d\d)$|.*twitch\.tv\/videos\/(\d\d\d\d\d\d\d\d\d)$/)
+
 // Ratio is width:height.
-function findBoxSize(windowSize, boxes, ratio) {
+function findBoxSize(windowSize, boxes, ratio, showTopBar, showBottomBar) {
   const adjustedWindowSize = {
     width: windowSize.width,
-    height: windowSize.height-headerHeight-footerHeight,
+    height: windowSize.height-(style.bar(showTopBar).height+style.bar(showBottomBar).height),
   }
   let bestBox = {width: minHeight*ratio, height: minHeight}
   // let bestBox = {width: 0, height: 0}
@@ -47,6 +101,15 @@ function findBoxSize(windowSize, boxes, ratio) {
     }
   }
   return bestBox
+}
+
+function anyPlaying(vods) {
+  for (let v of vods) {
+    if (v.playing) {
+      return true
+    }
+  }
+  return false
 }
 
 function getUnmutedIndex(vods) {
@@ -95,8 +158,6 @@ function useWindowSize() {
   return windowSize;
 }
 
-const durationRE = new RegExp(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/)
-
 function getMilliseconds(durationString) {
   let match = durationString.match(durationRE)
   const msFromSecs = parseInt(match[3]) * 1000
@@ -136,65 +197,52 @@ function App() {
     active: -1,
     vods: [],
   })
-  const [newVodText, setNewVodText] = React.useState("")
+  const [newVodText, setNewVodText] = React.useState("775309607")
+
+  const [smartMute, setSmartMute] = React.useState(true)
+  const [smartPlay, setSmartPlay] = React.useState(true)
+  const [showTopBar, setShowTopBar] = React.useState(true)
+  const [showBottomBar, setShowBottomBar] = React.useState(true)
+  const [play, setPlay] = React.useState(true)
+  const [error, setError] = React.useState("")
 
   const windowSize = useWindowSize()
-  const boxSize = findBoxSize(windowSize, vodState.vods.length, 16/9)
-
-  // const [vodRefs, setVodRefs] = React.useState([])
-  // React.useEffect(() => {
-  //   setVodRefs(vodRefs => (
-  //     Array(vods.length).fill().map((_, i) => vodRefs[i] || React.createRef())
-  //   ));
-  // }, [vods.length])
-
-  const [playing, setPlaying] = React.useState(false)
-
-  // const handleProgress = (state, index) => {
-  //   const diff = state.playedSeconds - vodState.vods[index].prevPlayedSeconds
-  //   // console.log(`${index}: ${vodState.vods[index].prevPlayedSeconds} -> ${state.playedSeconds} (${diff})`)
-  //   if (diff*1000 > 2*progressInterval) {
-  //     console.log(`detected jump in ${index}, size ${diff} seconds`)
-  //   }
-  //   vodState.vods[index].prevPlayedSeconds = state.playedSeconds
-  //   setVodState({
-  //     active: vodState.active,
-  //     vods: vodState.vods,
-  //   })
-  // }
+  const boxSize = findBoxSize(windowSize, vodState.vods.length, 16/9, showTopBar, showBottomBar)
 
   // In charge of making sure vods maintain a single mute.
   React.useEffect(() => {
     // Set interval to watch for change in mutes.
     const interval = setInterval(() => {
-      let anyActive = false
-      let newActive = -1
-      for (let i = 0; i < vodState.vods.length; i++) {
-        let muted = vodState.vods[i].ref.current.getInternalPlayer().getMuted()
-        if (!muted) {
-          anyActive = true
-          // If this is a new active vod, remember it.
-          if (i !== vodState.active) {
-            newActive = i
+      if (smartMute) {
+        let anyActive = false
+        let newActive = -1
+        for (let i = 0; i < vodState.vods.length; i++) {
+          let muted = vodState.vods[i].ref.current.getInternalPlayer().getMuted()
+          if (!muted) {
+            anyActive = true
+            // If this is a new active vod, remember it.
+            if (i !== vodState.active) {
+              newActive = i
+            }
           }
         }
-      }
 
-      if (newActive !== -1) {
-        let newVods = [...vodState.vods]
-        newVods[newActive].muted = false
-        if (vodState.active !== -1) {
-          newVods[vodState.active].muted = true
+        if (newActive !== -1) {
+          let newVods = [...vodState.vods]
+          newVods[newActive].muted = false
+          if (vodState.active !== -1) {
+            newVods[vodState.active].muted = true
+          }
+          setVodState({
+            active: newActive,
+            vods: newVods,
+          })
+        } else {
+          setVodState({
+            active: anyActive ? vodState.active : -1,
+            vods: vodState.vods,
+          })
         }
-        setVodState({
-          active: newActive,
-          vods: newVods,
-        })
-      } else {
-        setVodState({
-          active: anyActive ? vodState.active : -1,
-          vods: vodState.vods,
-        })
       }
     }, 200)
     return () => clearTimeout(interval)
@@ -211,21 +259,39 @@ function App() {
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          ...style.bar,
-          height: `${headerHeight}px`,
-          display: "flex",
-          justifyContent: "center",
-        }}
-      >
+      <div style={{...style.bar(showTopBar)}}>
         {/* Left of input */}
-        <div style={{flexGrow: 1, flexBasis: 0}}></div>
-        <div
-          style={{
-            display: "flex",
-            padding: "7px",
+        <div style={{display: "flex", flexGrow: 1, flexBasis: 0, alignItems: "center"}}>
+          {/* Error message */}
+          <div style={{
+            display: error === "" ? "none" : "flex",
+            alignItems: "center",
+            marginLeft: "10px",
+            marginRight: "10px",
+            padding: "4px",
+            fontSize: "13px",
+            background: "#757575",
+            boxShadow: "0 0 0 1px #b50000",
+            borderRadius: "2px",
+            maxHeight: `${style.bar(true).height-8}px`,
+            overflow: "scroll",
+            boxSizing: "border-box",
           }}>
+            <div>{error}</div>
+            <FontAwesomeIcon icon={faTimes} className="closeError"
+              style={{
+                width: "13px",
+                height: "13px",
+                padding: "3px",
+                marginLeft: "7px",
+                borderRadius: "2px",
+              }}
+              onClick={() => {setError("")}}
+            />
+          </div>
+        </div>
+        {/* Inputs */}
+        <div style={style.buttonContainer}>
           <input
             type="text"
             value={newVodText}
@@ -238,69 +304,62 @@ function App() {
               outline: "none",
               borderRadius: "2px",
               paddingLeft: "5px",
+              height: style.button(false).height,
             }}
           />
           <div
             style={{
-              ...style.button,
+              ...style.button(false),
               marginLeft: "5px",
-              padding: "4px",
-              fontSize: "13px",
-              borderRadius: "2px",
-              cursor: "pointer",
             }}
             onClick={() => {
-              fetch(`https://api.twitch.tv/helix/videos?id=${newVodText}`, {
-                headers: {
-                  "Authorization": `Bearer ${authToken}`,
-                  "Client-Id": process.env.REACT_APP_TWITCH_CLIENT_ID,
-                }
-              })
-                .then(resp => resp.json())
-                .then(data => {
-                  // Find starting and ending times for this video.
-                  const vodData = data.data["0"]
-                  const start = new Date(vodData.created_at)
-
-                  // If this is the first vod, it should be unmuted. Otherwise, add it as by default
-                  // muted.
-                  const isFirstVod = (vodState.vods.length === 0)
-
-                  setVodState({
-                    active: isFirstVod ? 0 : vodState.active,
-                    vods: vodState.vods.concat({
-                      id: newVodText,
-                      start: start,
-                      ref: React.createRef(),
-                      volume: defaultVolume,
-                      muted: !isFirstVod,
-                      prevPlayedSeconds: 0,
-                    })
-                  })
-                  setNewVodText("")
+              const match = newVodText.match(videoIdRE)
+              if (match !== null) {
+                const vodId = match[2] === undefined ? match[1] : match[2]
+                fetch(`https://api.twitch.tv/helix/videos?id=${vodId}`, {
+                  headers: {
+                    "Authorization": `Bearer ${authToken}`,
+                    "Client-Id": process.env.REACT_APP_TWITCH_CLIENT_ID,
+                  }
                 })
+                  .then(resp => resp.json())
+                  .then(data => {
+                    if (data.error === undefined) {
+                      // Find starting and ending times for this video.
+                      const vodData = data.data["0"]
+                      const start = new Date(vodData.created_at)
+
+                      // If this is the first vod, it should be unmuted. Otherwise, add it as by default
+                      // muted.
+                      const isFirstVod = (vodState.vods.length === 0)
+
+                      setVodState({
+                        active: isFirstVod ? 0 : vodState.active,
+                        vods: vodState.vods.concat({
+                          id: newVodText,
+                          start: start,
+                          ref: React.createRef(),
+                          playing: false,
+                          volume: defaultVolume,
+                          muted: !isFirstVod,
+                          showButtons: false,
+                          buttonTimeoutRef: React.createRef(),
+                        })
+                      })
+                    } else {
+                      setError(`API Error: ${data.error}, message: ${data.message} (status: ${data.status})`)
+                    }
+                  }).catch(error => setError(`Error adding video: ${error}`))
+              } else {
+                // No match, show error.
+                setError(`Could not parse video from text "${newVodText}"`)
+              }
+              setNewVodText("")
             }}
           >
             Add Video
           </div>
         </div>
-        {/* {vodState.vods.map((vod, index) => {
-          return (
-            <button type="button"
-              onClick={() => {
-                let currentSeconds = vod.ref.current.getCurrentTime()
-                for (let i = 0; i < vodState.vods.length; i++) {
-                  if (i !== index) {
-                    let offsetMs = vod.start - vodState.vods[i].start
-                    vodState.vods[i].ref.current.seekTo(currentSeconds+offsetMs/1000, "seconds")
-                  }
-                }
-              }}
-            >
-              sync to {index}
-            </button>
-          )
-        })} */}
         {/* Right of input */}
         <div
           style={{
@@ -311,9 +370,22 @@ function App() {
             alignItems: "center",
           }}>
           <a href="https://github.com/henryperson/twitchsync" style={{...style.link, marginRight: "20px", fontSize: "14px"}}>Source</a>
-          <a href="https://www.buymeacoffee.com/henryperson" style={{...style.link, marginRight: "20px", fontSize: "14px"}}>Buy Me Coffee</a>
+          <a href="https://www.buymeacoffee.com/henryperson" style={{...style.link, marginRight: "60px", fontSize: "14px"}}>Buy Me Coffee</a>
         </div>
       </div>
+      {/* Hide/show top/bottom bar icons */}
+      <FontAwesomeIcon
+        className="showhide"
+        style={{...style.angle(showTopBar), top: 0}}
+        icon={showTopBar ? faAngleUp : faAngleDown}
+        onClick={() => setShowTopBar(!showTopBar)}
+      />
+      <FontAwesomeIcon
+        className="showhide"
+        style={{...style.angle(showBottomBar), bottom: 0}}
+        icon={showBottomBar ? faAngleDown: faAngleUp}
+        onClick={() => setShowBottomBar(!showBottomBar)}
+      />
       {/* Main body */}
       <div
         style={{
@@ -336,10 +408,98 @@ function App() {
                 height: boxSize.height,
                 boxSizing: "border-box",
                 padding: "2px",
+                position: "relative",
+              }}
+              onMouseEnter={() => {
+                vod.showButtons = true
+                setVodState({
+                  active: vodState.active,
+                  vods: vodState.vods,
+                })
+                if (vod.buttonTimeoutRef !== null) {
+                  clearTimeout(vod.buttonTimeoutRef.current)
+                }
+                vod.buttonTimeoutRef.current = setTimeout(() => {
+                  vod.showButtons = false
+                  setVodState({
+                    active: vodState.active,
+                    vods: vodState.vods,
+                  })
+                }, 2000)
               }}
             >
+              {/* Buttons for closing */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  display: "flex",
+                  margin: "12px",
+                }}
+                // TODO: maybe don't repeat this code if it can be made a function without the
+                // rendering no longer working?
+                onMouseMove={() => {
+                  vod.showButtons = true
+                  setVodState({
+                    active: vodState.active,
+                    vods: vodState.vods,
+                  })
+                  if (vod.buttonTimeoutRef !== null) {
+                    clearTimeout(vod.buttonTimeoutRef.current)
+                  }
+                  vod.buttonTimeoutRef.current = setTimeout(() => {
+                    vod.showButtons = false
+                    setVodState({
+                      active: vodState.active,
+                      vods: vodState.vods,
+                    })
+                  }, 2000)
+                }}
+              >
+                {/* Sync button */}
+                <div
+                  style={{
+                    ...style.button(false),
+                    marginRight: "10px",
+                    visibility: vod.showButtons ? "visible" : "hidden",
+                  }}
+                  onClick={() => {
+                    let currentSeconds = vod.ref.current.getCurrentTime()
+                    for (let i = 0; i < vodState.vods.length; i++) {
+                      if (i !== index) {
+                        let offsetMs = vod.start - vodState.vods[i].start
+                        vodState.vods[i].ref.current.seekTo(currentSeconds+offsetMs/1000, "seconds")
+                      }
+                    }
+                  }}
+                >
+                  Sync To This
+                </div>
+                {/* Close button */}
+                <FontAwesomeIcon icon={faTimes}
+                  style={{
+                    ...style.button(false),
+                    width: "16px",
+                    height: "16px",
+                    padding: "6px",
+                    visibility: vod.showButtons ? "visible" : "hidden",
+                  }}
+                  onClick={() => {
+                    if (vod.buttonTimeoutRef !== null) {
+                      clearTimeout(vod.buttonTimeoutRef.current)
+                    }
+                    vodState.vods.splice(index, 1)
+                    setVodState({
+                      active: vodState.active === index ? -1 : vodState.active,
+                      vods: vodState.vods,
+                    })
+                  }}
+                />
+              </div>
+              {/* Player itself */}
               <ReactPlayer
-                ref={vodState.vods[index].ref}
+                ref={vod.ref}
                 url={"https://www.twitch.tv/videos/" + vod.id}
                 width="100%"
                 height="100%"
@@ -352,14 +512,33 @@ function App() {
                     },
                   },
                 }}
-                // style={{
-                //   border: vod.muted ? "" : "1px solid red",
-                // }}
                 volume={vod.volume}
                 muted={vod.muted}
-                playing={playing}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
+                playing={vod.playing}
+                onPlay={() => {
+                  if (smartPlay) {
+                    for (let v of vodState.vods) {
+                      v.playing = true
+                    }
+                  }
+                  vod.playing = true
+                  setVodState({
+                    active: vodState.active,
+                    vods: vodState.vods,
+                  })
+                }}
+                onPause={() => {
+                  if (smartPlay) {
+                    for (let v of vodState.vods) {
+                      v.playing = false
+                    }
+                  }
+                  vod.playing = false
+                  setVodState({
+                    active: vodState.active,
+                    vods: vodState.vods,
+                  })
+                }}
                 progressInterval={progressInterval}
               />
             </div>
@@ -369,11 +548,76 @@ function App() {
       {/* Footer */}
       <div
         style={{
-          ...style.bar,
-          height: `${footerHeight}px`,
-          display: "flex",
+          ...style.bar(showBottomBar),
         }}
       >
+        <div style={{...style.buttonContainer, flex: "1 0 0", justifyContent: "flex-start"}}>
+          <div style={{...style.button(false), margin: "10px"}}>Earliest Sync</div>
+          <div style={{...style.button(smartMute), margin: "10px", width: "95px"}}
+            onClick={() => setSmartMute(!smartMute)}
+          >
+            Smart Mute {smartMute ? "On" : "Off"}
+          </div>
+          <div style={{...style.button(smartPlay), margin: "10px", width: "95px"}}
+            onClick={() => setSmartPlay(!smartPlay)}
+          >
+            Smart Play {smartPlay ? "On" : "Off"}
+          </div>
+        </div>
+        {/* Central controls */}
+        <div style={style.buttonContainer}>
+          {/* Back 10 seconds */}
+          <FontAwesomeIcon style={{...style.control, ...style.seek}} icon={faUndo}
+            onClick={() => {
+              setSmartPlay(true)
+              for (let v of vodState.vods) {
+                v.playing = true
+              }
+              setVodState({
+                active: vodState.active,
+                vods: vodState.vods,
+              })
+              for (let v of vodState.vods) {
+                let currentTime = v.ref.current.getCurrentTime()
+                v.ref.current.seekTo(currentTime - 10)
+              }
+            }}
+          />
+          {/* Play/pause */}
+          <FontAwesomeIcon style={{...style.control, ...style.playPause}}
+            icon={anyPlaying(vodState.vods) ? faPause : faPlay}
+            onClick={() => {
+              setSmartPlay(true)
+              let anyVodsPlaying = anyPlaying(vodState.vods)
+              for (let v of vodState.vods) {
+                v.playing = !anyVodsPlaying
+              }
+              setVodState({
+                active: vodState.active === -1 ? 0 : vodState.active,
+                vods: vodState.vods,
+              })
+            }}
+          />
+          {/* Forward 10 seconds */}
+          <FontAwesomeIcon style={{...style.control, ...style.seek}} icon={faRedo}
+            onClick={() => {
+              setSmartPlay(true)
+              for (let v of vodState.vods) {
+                v.playing = true
+              }
+              setVodState({
+                active: vodState.active,
+                vods: vodState.vods,
+              })
+              for (let v of vodState.vods) {
+                let currentTime = v.ref.current.getCurrentTime()
+                v.ref.current.seekTo(currentTime + 10)
+              }
+            }}
+          />
+        </div>
+        <div style={{...style.buttonContainer, flex: "1 0 0", justifyContent: "flex-end"}}>
+        </div>
       </div>
     </div>
   );
