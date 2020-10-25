@@ -197,6 +197,14 @@ function App() {
     active: -1,
     vods: [],
   })
+
+  // These are used when we need to asynchronously remove buttons, which accidentally delete vods
+  // sometimes due to not knowing new vods were added.
+  const vodsRef = React.useRef(vodState.vods)
+  vodsRef.current = vodState.vods
+  const activeVod = React.useRef(vodState.active)
+  activeVod.current = vodState.active
+
   const [newVodText, setNewVodText] = React.useState("775309607")
 
   const [smartMute, setSmartMute] = React.useState(true)
@@ -213,38 +221,47 @@ function App() {
   React.useEffect(() => {
     // Set interval to watch for change in mutes.
     const interval = setInterval(() => {
-      if (smartMute) {
-        let anyActive = false
-        let newActive = -1
-        for (let i = 0; i < vodState.vods.length; i++) {
-          let muted = vodState.vods[i].ref.current.getInternalPlayer().getMuted()
-          if (!muted) {
-            anyActive = true
-            // If this is a new active vod, remember it.
-            if (i !== vodState.active) {
-              newActive = i
+      try {
+        if (smartMute) {
+          let anyActive = false
+          let newActive = -1
+          for (let i = 0; i < vodState.vods.length; i++) {
+            let player = vodState.vods[i].ref.current.getInternalPlayer()
+            if (player !== undefined) {
+              let muted = player.getMuted()
+              if (!muted) {
+                anyActive = true
+                // If this is a new active vod, remember it.
+                if (i !== vodState.active) {
+                  newActive = i
+                }
+              }
             }
           }
-        }
-
-        if (newActive !== -1) {
-          let newVods = [...vodState.vods]
-          newVods[newActive].muted = false
-          if (vodState.active !== -1) {
-            newVods[vodState.active].muted = true
+          if (newActive !== -1) {
+            vodState.vods[newActive].muted = false
+            if (vodState.active !== -1) {
+              vodState.vods[vodState.active].muted = true
+            }
+            setVodState({
+              active: newActive,
+              vods: vodState.vods,
+            })
+          } else {
+            setVodState({
+              active: anyActive ? vodState.active : -1,
+              vods: vodState.vods,
+            })
           }
-          setVodState({
-            active: newActive,
-            vods: newVods,
-          })
-        } else {
-          setVodState({
-            active: anyActive ? vodState.active : -1,
-            vods: vodState.vods,
-          })
         }
+      } catch (error) {
+        setVodState({
+          active: -1,
+          vods: vodsRef.current,
+        })
+        console.log(error)
       }
-    }, 200)
+    }, 50)
     return () => clearTimeout(interval)
   })
 
@@ -328,6 +345,7 @@ function App() {
                       // Find starting and ending times for this video.
                       const vodData = data.data["0"]
                       const start = new Date(vodData.created_at)
+                      const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
 
                       // If this is the first vod, it should be unmuted. Otherwise, add it as by default
                       // muted.
@@ -336,14 +354,16 @@ function App() {
                       setVodState({
                         active: isFirstVod ? 0 : vodState.active,
                         vods: vodState.vods.concat({
-                          id: newVodText,
+                          id: vodId,
                           start: start,
+                          end: end,
                           ref: React.createRef(),
                           playing: false,
                           volume: defaultVolume,
                           muted: !isFirstVod,
                           showButtons: false,
                           buttonTimeoutRef: React.createRef(),
+                          vodData: vodData,
                         })
                       })
                     } else {
@@ -422,8 +442,8 @@ function App() {
                 vod.buttonTimeoutRef.current = setTimeout(() => {
                   vod.showButtons = false
                   setVodState({
-                    active: vodState.active,
-                    vods: vodState.vods,
+                    active: activeVod.current,
+                    vods: vodsRef.current,
                   })
                 }, 2000)
               }}
@@ -451,8 +471,8 @@ function App() {
                   vod.buttonTimeoutRef.current = setTimeout(() => {
                     vod.showButtons = false
                     setVodState({
-                      active: vodState.active,
-                      vods: vodState.vods,
+                      active: activeVod.current,
+                      vods: vodsRef.current,
                     })
                   }, 2000)
                 }}
@@ -465,12 +485,25 @@ function App() {
                     visibility: vod.showButtons ? "visible" : "hidden",
                   }}
                   onClick={() => {
-                    let currentSeconds = vod.ref.current.getCurrentTime()
+                    // Check if the videos are syncable.
+                    const currentSeconds = vod.ref.current.getCurrentTime()
+                    console.log("currentSeconds", currentSeconds)
+                    const currentTime = new Date(vod.start.getTime() + currentSeconds*1000)
+                    console.log("start", vod.start)
+                    console.log("current time", currentTime)
+                    let syncVods = []
                     for (let i = 0; i < vodState.vods.length; i++) {
-                      if (i !== index) {
-                        let offsetMs = vod.start - vodState.vods[i].start
-                        vodState.vods[i].ref.current.seekTo(currentSeconds+offsetMs/1000, "seconds")
+                      const v = vodState.vods[i]
+                      if (v.end < currentTime || v.start > currentTime) {
+                        setError(`Cannot sync ${v.vodData.user_name} (id ${v.id})`)
+                      } else if (i !== index) {
+                        syncVods.push(v)
                       }
+                    }
+                    // Sync them.
+                    for (let v of syncVods) {
+                      let offset = (vod.start - v.start)/1000
+                      v.ref.current.seekTo(currentSeconds+offset, "seconds")
                     }
                   }}
                 >
@@ -552,7 +585,33 @@ function App() {
         }}
       >
         <div style={{...style.buttonContainer, flex: "1 0 0", justifyContent: "flex-start"}}>
-          <div style={{...style.button(false), margin: "10px"}}>Earliest Sync</div>
+        <div style={{...style.button(false), margin: "10px"}}
+            onClick={() => {
+              if (vodState.vods.length > 0) {
+                // Find the latest vod.
+                let latestVod = vodState.vods[0]
+                for (let vod of vodState.vods) {
+                  if (vod.start > latestVod.start) {
+                    latestVod = vod
+                  }
+                }
+                // Confirm that we can seek to this time in all vods.
+                for (let vod of vodState.vods) {
+                  if (vod.end < latestVod.start) {
+                    setError(`Can't sync: ${vod.vodData.user_name} video (id ${vod.id}) ends before ${latestVod.vodData.user_name} video (id ${latestVod.id}) begins`)
+                    return
+                  }
+                }
+                // Sync the vods.
+                for (let vod of vodState.vods) {
+                  const seekTo = (latestVod.start - vod.start)/1000
+                  vod.ref.current.seekTo(seekTo)
+                }
+              }
+            }}
+          >
+            Earliest Sync
+          </div>
           <div style={{...style.button(smartMute), margin: "10px", width: "95px"}}
             onClick={() => setSmartMute(!smartMute)}
           >
