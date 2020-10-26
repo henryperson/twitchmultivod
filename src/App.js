@@ -70,6 +70,7 @@ const style= {
     color: barShown ? "black" : "white",
     position: "absolute",
     right: 0,
+    zIndex: 2,
   }),
 }
 
@@ -205,7 +206,7 @@ function App() {
   const activeVod = React.useRef(vodState.active)
   activeVod.current = vodState.active
 
-  const [newVodText, setNewVodText] = React.useState("775309607")
+  const [newVodText, setNewVodText] = React.useState("")
 
   const [smartMute, setSmartMute] = React.useState(true)
   const [smartPlay, setSmartPlay] = React.useState(true)
