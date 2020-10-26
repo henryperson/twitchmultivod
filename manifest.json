@@ -1,19 +1,19 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Twitch Multi Vod",
+  "name": "Watch Twitch Vods In Sync",
   "icons": [
     {
-      "src": "favicon.ico",
+      "src": "favicon32.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "logo192.png",
+      "src": "tmv192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "logo512.png",
+      "src": "tmv512.png",
       "type": "image/png",
       "sizes": "512x512"
     }
