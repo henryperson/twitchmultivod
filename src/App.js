@@ -217,7 +217,6 @@ function App() {
       .then(data => setAuthToken(data.access_token))
   }, [])
 
-  // const [vods, setVods] = React.useState([])
   const [vodState, setVodState] = React.useState({
     active: -1,
     vods: [],
@@ -691,11 +690,11 @@ function App() {
             <div style={style.instructions}>Other controls:</div>
             <div style={style.instructions}>
               <ul style={{paddingLeft: "20px", margin: "6px 0px"}}>
-                <li>Smart mute forces most one video to be unmuted</li>
-                <li>Smart play forces all videos to pause/play together. You can use smart play to
+                <li>Smart mute forces at most one video to be unmuted</li>
+                <li>Smart play forces all videos to pause/play together. You can use it to
                 get a bit more fine grained control over video sync, as it's not perfect.</li>
                 <li>Controls at the bottom apply to all videos. The skips go forward/back by 10 seconds.</li>
-                <li>The arrows on the top/bottom bars will show/hide those bars.</li>
+                <li>The arrows on the top/bottom bars will show/hide those bars, if you want the extra space.</li>
               </ul>
             </div>
             <div style={style.instructions}>Sorry if it's not perfect, I am limited in annoying
