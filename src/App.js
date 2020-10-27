@@ -314,10 +314,11 @@ function App() {
   const getLink = (useTimestamp) => {
     const base = window.location.origin
     let vods = ""
+    let timestampIndex = vodState.active === -1 ? 0 : vodState.active
     for (let i = 0; i < vodState.vods.length; i++) {
       const vod = vodState.vods[i]
       let timestamp = ""
-      if (useTimestamp) {
+      if (useTimestamp && i === timestampIndex) {
         timestamp = getTimestamp()
       }
       vods = timestamp === "" ? `${vods}/${vod.id}` : `${vods}/${vod.id}?t=${timestamp}`
