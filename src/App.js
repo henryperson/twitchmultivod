@@ -1,9 +1,8 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
 import ReactPlayer from 'react-player/twitch'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlay, faPause, faRedo, faUndo, faAngleUp, faAngleDown, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faPause, faRedo, faUndo, faAngleUp, faAngleDown, faTimes, faCopy} from '@fortawesome/free-solid-svg-icons'
 
 const minHeight = 300
 const defaultVolume = .5
@@ -72,10 +71,23 @@ const style= {
     right: 0,
     zIndex: 2,
   }),
+  textbox: {
+    background: "#cfcfcf",
+    border: "none",
+    outline: "none",
+    borderRadius: "2px",
+  },
+  instructions: {
+    fontSize: "15px",
+    marginTop: "8px",
+  }
 }
 
-const durationRE = new RegExp(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/)
-const videoIdRE = new RegExp(/^(\d\d\d\d\d\d\d\d\d)$|.*twitch\.tv\/videos\/(\d\d\d\d\d\d\d\d\d)$/)
+const duration = String.raw`(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)`
+const durationRE = new RegExp(`${duration}`)
+const vId = String.raw`\d\d\d\d\d\d\d\d\d`
+const videoIdRE = new RegExp(`^(${vId})$|.*twitch\\.tv\\/videos\\/(${vId})$`)
+const videoWithTimestampRE = new RegExp(`(${vId})(?:\\?t=(${duration}))?`)
 
 // Ratio is width:height.
 function findBoxSize(windowSize, boxes, ratio, showTopBar, showBottomBar) {
@@ -113,20 +125,6 @@ function anyPlaying(vods) {
   return false
 }
 
-function getUnmutedIndex(vods) {
-  for (let i = 0; i < vods.length; i++) {
-    if (!vods[i].muted) {
-      return i
-    }
-  }
-  return -1
-}
-
-function isProbablyInitialJump(diff) {
-  const threshhold = 2 // seconds.
-  return Math.abs(diff*1000 - progressInterval) < threshhold*1000
-}
-
 // Adapted from https://usehooks.com/useWindowSize/
 function useWindowSize() {
   // Initialize state with undefined width/height so server and client renders match
@@ -159,6 +157,37 @@ function useWindowSize() {
   return windowSize;
 }
 
+// Copied from https://usehooks.com/useOnClickOutside/
+function useOnClickOutside(ref, handler) {
+  React.useEffect(
+    () => {
+      const listener = event => {
+        // Do nothing if clicking ref's element or descendent elements
+        if (!ref.current || ref.current.contains(event.target)) {
+          return;
+        }
+
+        handler(event);
+      };
+
+      document.addEventListener('mousedown', listener);
+      document.addEventListener('touchstart', listener);
+
+      return () => {
+        document.removeEventListener('mousedown', listener);
+        document.removeEventListener('touchstart', listener);
+      };
+    },
+    // Add ref and handler to effect dependencies
+    // It's worth noting that because passed in handler is a new ...
+    // ... function on every render that will cause this effect ...
+    // ... callback/cleanup to run every render. It's not a big deal ...
+    // ... but to optimize you can wrap handler in useCallback before ...
+    // ... passing it into this hook.
+    [ref, handler]
+  );
+}
+
 function getMilliseconds(durationString) {
   let match = durationString.match(durationRE)
   const msFromSecs = parseInt(match[3]) * 1000
@@ -172,26 +201,21 @@ function toTwitchTime(seconds) {
   const hours = Math.floor(secondsLeft/(60*60))
   secondsLeft = secondsLeft - hours*60*60
   const minutes = Math.floor(secondsLeft/60)
-  secondsLeft = secondsLeft - minutes*60
+  secondsLeft = Math.round(secondsLeft - minutes*60)
   return `${hours}h${minutes}m${secondsLeft}s`
 }
 
-
-// let vods = ["775614397", "775477240", "775309607"]
-// let vods = ["775614397"]
-
+const urlPath = window.location.pathname.substr(1) + window.location.search
 
 function App() {
   const [authToken, setAuthToken] = React.useState("")
   React.useEffect(() => {
-    if (authToken === "") {
-      fetch(`https://id.twitch.tv/oauth2/token?client_id=${process.env.REACT_APP_TWITCH_CLIENT_ID}&client_secret=${process.env.REACT_APP_TWITCH_SECRET}&grant_type=client_credentials`, {
-        method: 'POST',
-      })
-        .then(resp => resp.json())
-        .then(data => setAuthToken(data.access_token))
-    }
-  })
+    fetch(`https://id.twitch.tv/oauth2/token?client_id=${process.env.REACT_APP_TWITCH_CLIENT_ID}&client_secret=${process.env.REACT_APP_TWITCH_SECRET}&grant_type=client_credentials`, {
+      method: 'POST',
+    })
+      .then(resp => resp.json())
+      .then(data => setAuthToken(data.access_token))
+  }, [])
 
   // const [vods, setVods] = React.useState([])
   const [vodState, setVodState] = React.useState({
@@ -212,11 +236,95 @@ function App() {
   const [smartPlay, setSmartPlay] = React.useState(true)
   const [showTopBar, setShowTopBar] = React.useState(true)
   const [showBottomBar, setShowBottomBar] = React.useState(true)
-  const [play, setPlay] = React.useState(true)
+  const [shareState, setShareState] = React.useState({
+    show: false,
+    useTimestamp: true,
+    url: "",
+    timestamp: "",
+  })
   const [error, setError] = React.useState("")
+  const [initialSync, setInitialSync] = React.useState(null)
+
+  const shareWindow = React.useRef()
+  useOnClickOutside(shareWindow, () => setShareState({...shareState, show: false}))
+  const shareText = React.useRef()
 
   const windowSize = useWindowSize()
   const boxSize = findBoxSize(windowSize, vodState.vods.length, 16/9, showTopBar, showBottomBar)
+
+  const getVod = (vodId) => {
+    return fetch(`https://api.twitch.tv/helix/videos?id=${vodId}`, {
+      headers: {
+        "Authorization": `Bearer ${authToken}`,
+        "Client-Id": process.env.REACT_APP_TWITCH_CLIENT_ID,
+      }
+    })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.error === undefined) {
+          // Find starting and ending times for this video.
+          const vodData = data.data["0"]
+          const start = new Date(vodData.created_at)
+          const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
+
+          return {
+            id: vodId,
+            start: start,
+            end: end,
+            ref: React.createRef(),
+            playing: false,
+            volume: defaultVolume,
+            muted: true,
+            showButtons: false,
+            buttonTimeoutRef: React.createRef(),
+            vodData: vodData,
+          }
+        } else {
+          setError(`API Error: ${data.error}, message: ${data.message} (status: ${data.status})`)
+        }
+      }).catch(error => setError(`Error adding video: ${error}`))
+  }
+
+  const syncVods = (time, mustSyncAll) => {
+    let syncVods = []
+    for (let v of vodState.vods) {
+      if (v.end < time || v.start > time) {
+        setError(`Cannot sync ${v.vodData.user_name} (id ${v.id})`)
+        if (mustSyncAll) {
+          return
+        }
+      } else {
+        syncVods.push(v)
+      }
+    }
+    // Sync them.
+    for (let v of syncVods) {
+      let offset = (time - v.start)/1000
+      v.ref.current.seekTo(offset, "seconds")
+    }
+  }
+
+  const getTimestamp = () => {
+    if (vodState.active === -1) {
+      return toTwitchTime(vodState.vods[0].ref.current.getCurrentTime())
+    } else {
+      return toTwitchTime(vodState.vods[vodState.active].ref.current.getCurrentTime())
+    }
+  }
+
+  const getLink = (useTimestamp) => {
+    const base = window.location.origin
+    let vods = ""
+    for (let i = 0; i < vodState.vods.length; i++) {
+      const vod = vodState.vods[i]
+      let timestamp = ""
+      if (useTimestamp) {
+        timestamp = getTimestamp()
+      }
+      vods = timestamp === "" ? `${vods}/${vod.id}` : `${vods}/${vod.id}?t=${timestamp}`
+    }
+    return `${base}${vods}`
+  }
 
   // In charge of making sure vods maintain a single mute.
   React.useEffect(() => {
@@ -265,6 +373,80 @@ function App() {
     }, 50)
     return () => clearTimeout(interval)
   })
+
+  React.useEffect(() => {
+    if (urlPath && authToken) {
+      // Parse videos out of the urlPath and check that they are valid ID strings. Also, if there
+      // is a timestamp, store it.
+      const vodIds = urlPath.split("/")
+      let syncVod = null
+      const vodPromises = []
+      for (let vodIdStr of vodIds) {
+        // Most likely this is just a trailing slash.
+        if (vodIdStr === "") {
+          continue
+        }
+        let match = vodIdStr.match(videoWithTimestampRE)
+        // Make sure this is a valid ID.
+        if (match === null) {
+          setError(`Incorrect ID in url: ${vodIdStr}`)
+          return
+        }
+        let vodId = match[1]
+        // If it has a timestamp, throw an error if it's an inaccurate timestamp or if we already
+        // had a timestamp.
+        if (vodIdStr.includes("?t=")) {
+          if (match[2] === null) {
+            setError(`Invalid timestamp here: ${vodIdStr}`)
+            return
+          } else if (syncVod !== null) {
+            setError(`URL has multiple timestamps: ${vodIdStr}`)
+            return
+          } else {
+            syncVod = {milliseconds: getMilliseconds(match[2]), id: vodId}
+          }
+        }
+        vodPromises.push(getVod(vodId))
+      }
+      // Wait for all vods to finish loading, then set their state.
+      Promise.all(vodPromises).then((vods) => {
+        // If we don't need to sync to a time, then just set state.
+        if (!syncVod) {
+          setVodState({
+            active: -1,
+            vods: vods
+          })
+        } else {
+          // Set vods to playing before running a seek. Also, get the vod that we'll sync to.
+          let timeToSync = new Date(0)
+          for (let vod of vods) {
+            vod.playing = true
+            if (vod.id === syncVod.id) {
+              timeToSync = new Date(vod.start.getTime() + syncVod.milliseconds)
+            }
+          }
+          setInitialSync(timeToSync)
+          setVodState({
+            active: 0,
+            vods: vods
+          })
+        }
+      })
+    }
+  }, [authToken])
+
+  React.useEffect(() => {
+    if (initialSync) {
+      // Make sure refs exist for each vod.
+      for (let vod of vodState.vods) {
+        if (vod.ref.current === null) {
+          return
+        }
+      }
+      syncVods(initialSync, false)
+      setInitialSync(null)
+    }
+  }, [vodState])
 
   return (
     <div
@@ -317,10 +499,7 @@ function App() {
             size="50"
             placeholder="http://twitch.tv/videos/123456789 or 123456789"
             style={{
-              background: "#cfcfcf",
-              border: "none",
-              outline: "none",
-              borderRadius: "2px",
+              ...style.textbox,
               paddingLeft: "5px",
               height: style.button(false).height,
             }}
@@ -334,43 +513,15 @@ function App() {
               const match = newVodText.match(videoIdRE)
               if (match !== null) {
                 const vodId = match[2] === undefined ? match[1] : match[2]
-                fetch(`https://api.twitch.tv/helix/videos?id=${vodId}`, {
-                  headers: {
-                    "Authorization": `Bearer ${authToken}`,
-                    "Client-Id": process.env.REACT_APP_TWITCH_CLIENT_ID,
-                  }
+                getVod(vodId)
+                .then((vod) => {
+                  const isFirstVod = (vodState.vods.length === 0)
+                  vod.muted = !isFirstVod
+                  setVodState({
+                    active: isFirstVod ? 0 : vodState.active,
+                    vods: vodState.vods.concat(vod)
+                  })
                 })
-                  .then(resp => resp.json())
-                  .then(data => {
-                    if (data.error === undefined) {
-                      // Find starting and ending times for this video.
-                      const vodData = data.data["0"]
-                      const start = new Date(vodData.created_at)
-                      const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
-
-                      // If this is the first vod, it should be unmuted. Otherwise, add it as by default
-                      // muted.
-                      const isFirstVod = (vodState.vods.length === 0)
-
-                      setVodState({
-                        active: isFirstVod ? 0 : vodState.active,
-                        vods: vodState.vods.concat({
-                          id: vodId,
-                          start: start,
-                          end: end,
-                          ref: React.createRef(),
-                          playing: false,
-                          volume: defaultVolume,
-                          muted: !isFirstVod,
-                          showButtons: false,
-                          buttonTimeoutRef: React.createRef(),
-                          vodData: vodData,
-                        })
-                      })
-                    } else {
-                      setError(`API Error: ${data.error}, message: ${data.message} (status: ${data.status})`)
-                    }
-                  }).catch(error => setError(`Error adding video: ${error}`))
               } else {
                 // No match, show error.
                 setError(`Could not parse video from text "${newVodText}"`)
@@ -379,6 +530,95 @@ function App() {
             }}
           >
             Add Video
+          </div>
+          {/* Share */}
+          <div ref={shareWindow} style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
+            <div style={{...style.button(false), marginLeft: "5px", position: "relative"}}
+              onClick={() => {
+                if (vodState.vods.length === 0) {
+                  setError("You can't share before adding videos!")
+                  return
+                }
+                setShareState({...shareState, url: getLink(shareState.useTimestamp), show: !shareState.show, timestamp: getTimestamp()})
+              }}
+            >
+              Share
+            </div>
+            {/* Actual share window */}
+            <div
+              style={{
+                position: "absolute",
+                display: shareState.show ? "flex" : "none",
+                flexDirection: "column",
+                top: style.bar(true).height+1,
+                background: "#757575",
+                borderRadius: "3px",
+                padding: "4px 3px 3px 10px",
+                zIndex: 2,
+              }}
+            >
+              <div style={{display: "flex", justifyContent: "space-between"}}>
+                <div style={{fontSize: "14px"}}>Share</div>
+                <FontAwesomeIcon icon={faTimes} className="shareButton"
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    padding: "2px",
+                    borderRadius: "3px",
+                  }}
+                  onClick={() => {setShareState({...shareState, show: false})}}
+                />
+              </div>
+              <div style={{display: "flex", alignSelf: "center", alignItems: "center", margin: "10px 0px"}}>
+                <input
+                  ref={shareText}
+                  type="text"
+                  size={shareState.url.length > 50 ? shareState.url.length : 50}
+                  style={{
+                    ...style.textbox,
+                    padding: "5px 2px",
+                  }}
+                  value={shareState.url}
+                  readOnly={true}
+                />
+                {/* </div> */}
+                <FontAwesomeIcon icon={faCopy} className="shareButton"
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    marginLeft: "6px",
+                    marginRight: "-2px",
+                    padding: "6px",
+                    borderRadius: "50%",
+                  }}
+                  onClick={() => {
+                    shareText.current.select()
+                    document.execCommand('copy')
+                  }}
+                />
+              </div>
+              <div style={{display: "flex", alignSelf: "center"}}>
+                <input
+                  type="checkbox"
+                  checked={shareState.useTimestamp}
+                  onChange={(e) => {
+                    setShareState({
+                      ...shareState,
+                      useTimestamp: e.target.checked,
+                      url: getLink(e.target.checked),
+                      timestamp: getTimestamp(),
+                    })
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: "14px"
+                  }}
+                >
+                  Start at {shareState.timestamp}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         {/* Right of input */}
@@ -419,7 +659,50 @@ function App() {
           flexBasis: 0,
           flexWrap: "wrap",
           minWidth: "0%",
-        }}>
+        }}
+      >
+        {vodState.vods.length === 0 &&
+          <div
+            style={{
+              color: style.link.color,
+              boxShadow: `0 0 0 1px ${style.link.color}`,
+              borderRadius: "2px",
+              padding: "15px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              width: "580px",
+            }}
+          >
+            <div style={{
+              alignSelf: "center",
+              marginBottom: "15px",
+              fontSize: style.instructions.fontSize+2
+            }}>Instructions</div>
+            <div style={style.instructions}>1. Copy the links or ids of the VODs you want to watch
+            (one at a time) into the text box at the top and click "Add Video".</div>
+            <div style={style.instructions}>2. Find a point in a video where you want to watch, and
+            use that video's "Sync To This" button to watch all videos at that real time. You can
+            also use "Earliest Sync" to sync all videos to the earliest time where they were all live.</div>
+            <div style={style.instructions}>3. Click "Share" to get a link to the set of videos you
+            are watching and (optionally) a timestamp to sync them all to. The timestamp is whichever
+            video is unmuted at the time, and if they're all muted it defaults to the first video.</div>
+
+            <div style={style.instructions}>Other controls:</div>
+            <div style={style.instructions}>
+              <ul style={{paddingLeft: "20px", margin: "6px 0px"}}>
+                <li>Smart mute forces most one video to be unmuted</li>
+                <li>Smart play forces all videos to pause/play together. You can use smart play to
+                get a bit more fine grained control over video sync, as it's not perfect.</li>
+                <li>Controls at the bottom apply to all videos. The skips go forward/back by 10 seconds.</li>
+                <li>The arrows on the top/bottom bars will show/hide those bars.</li>
+              </ul>
+            </div>
+            <div style={style.instructions}>Sorry if it's not perfect, I am limited in annoying
+            ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchsync/issues">here</a>.</div>
+            <div style={style.instructions}>Hope you enjoy!</div>
+          </div>
+        }
         {vodState.vods.map((vod, index) => {
           return (
             <div
@@ -488,24 +771,8 @@ function App() {
                   onClick={() => {
                     // Check if the videos are syncable.
                     const currentSeconds = vod.ref.current.getCurrentTime()
-                    console.log("currentSeconds", currentSeconds)
                     const currentTime = new Date(vod.start.getTime() + currentSeconds*1000)
-                    console.log("start", vod.start)
-                    console.log("current time", currentTime)
-                    let syncVods = []
-                    for (let i = 0; i < vodState.vods.length; i++) {
-                      const v = vodState.vods[i]
-                      if (v.end < currentTime || v.start > currentTime) {
-                        setError(`Cannot sync ${v.vodData.user_name} (id ${v.id})`)
-                      } else if (i !== index) {
-                        syncVods.push(v)
-                      }
-                    }
-                    // Sync them.
-                    for (let v of syncVods) {
-                      let offset = (vod.start - v.start)/1000
-                      v.ref.current.seekTo(currentSeconds+offset, "seconds")
-                    }
+                    syncVods(currentTime, false)
                   }}
                 >
                   Sync To This
@@ -596,18 +863,7 @@ function App() {
                     latestVod = vod
                   }
                 }
-                // Confirm that we can seek to this time in all vods.
-                for (let vod of vodState.vods) {
-                  if (vod.end < latestVod.start) {
-                    setError(`Can't sync: ${vod.vodData.user_name} video (id ${vod.id}) ends before ${latestVod.vodData.user_name} video (id ${latestVod.id}) begins`)
-                    return
-                  }
-                }
-                // Sync the vods.
-                for (let vod of vodState.vods) {
-                  const seekTo = (latestVod.start - vod.start)/1000
-                  vod.ref.current.seekTo(seekTo)
-                }
+                syncVods(latestVod.start, true)
               }
             }}
           >
