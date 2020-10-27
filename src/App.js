@@ -205,7 +205,7 @@ function toTwitchTime(seconds) {
   return `${hours}h${minutes}m${secondsLeft}s`
 }
 
-const urlPath = window.location.pathname.substr(1) + window.location.search
+const urlPath = window.location.hash.substr(2)
 
 function App() {
   const [authToken, setAuthToken] = React.useState("")
@@ -312,7 +312,7 @@ function App() {
   }
 
   const getLink = (useTimestamp) => {
-    const base = window.location.origin
+    const base = window.location.origin+"/#"
     let vods = ""
     let timestampIndex = vodState.active === -1 ? 0 : vodState.active
     for (let i = 0; i < vodState.vods.length; i++) {
@@ -376,6 +376,7 @@ function App() {
 
   React.useEffect(() => {
     if (urlPath && authToken) {
+      console.log(urlPath)
       // Parse videos out of the urlPath and check that they are valid ID strings. Also, if there
       // is a timestamp, store it.
       const vodIds = urlPath.split("/")
