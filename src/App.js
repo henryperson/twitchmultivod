@@ -631,7 +631,7 @@ function App() {
             justifyContent: "flex-end",
             alignItems: "center",
           }}>
-          <a href="https://github.com/henryperson/twitchsync" style={{...style.link, marginRight: "20px", fontSize: "14px"}}>Source</a>
+          <a href="https://github.com/henryperson/twitchmultivod" style={{...style.link, marginRight: "20px", fontSize: "14px"}}>Source</a>
           <a href="https://www.buymeacoffee.com/henryperson" style={{...style.link, marginRight: "60px", fontSize: "14px"}}>Buy Me Coffee</a>
         </div>
       </div>
@@ -700,7 +700,7 @@ function App() {
               </ul>
             </div>
             <div style={style.instructions}>Sorry if it's not perfect, I am limited in annoying
-            ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchsync/issues">here</a>.</div>
+            ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchmultivod/issues">here</a>.</div>
             <div style={style.instructions}>Hope you enjoy!</div>
           </div>
         }

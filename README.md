@@ -1,3 +1,19 @@
+# Twitch Multi VOD
+
+Twitch multi VOD is a webapp that lets you play Twitch VODs at the same time and sync them up. I built it because I wanted to use it to watch some streamers play SCP at the same time. [And it was worth it](https://twitchmultivod.com/#/775309607?t=8h12m43s/775595078). If you've noticed an issue feel free to submit it—I'll definitely see it as I get emails for this repo, and probably will end up dealing with it if possible. Unfortunately the Twitch API is limiting, so I can't guarantee getting to everything. As for new feature requests...probably won't get to those unless this website blows up.
+
+If anything I would like to add the ability to find VODs to add to your current watch list. Maybe a suggestions pane that checks the Twitch API to find other popular streamers playing the same game at the same time.
+
+If you decide you want to actually contribute to this repo go right ahead. You'll need an API token though, so follow the Twitch instructions for generating one [here](https://dev.twitch.tv/docs/authentication). You want an app access token. Then put it (along with your client ID) in a file called `.env.development` as environment variables. That is, the file will be:
+```
+REACT_APP_TWITCH_CLIENT_ID=your_id
+REACT_APP_TWITCH_SECRET=your_secret
+```
+
+Thanks for checking out the site!
+
+---
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
