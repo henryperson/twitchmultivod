@@ -256,7 +256,7 @@ function App() {
         if (data.data.video) {
           // Find starting and ending times for this video.
           const vodData = data.data.video
-          const start = new Date(vodData.created_at)
+          const start = new Date(vodData.createdAt)
           const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
           return {
             id: vodId,
