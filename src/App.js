@@ -3,6 +3,7 @@ import './App.css';
 import ReactPlayer from 'react-player/twitch'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlay, faPause, faRedo, faUndo, faAngleUp, faAngleDown, faTimes, faCopy} from '@fortawesome/free-solid-svg-icons'
+import {isMobile} from 'react-device-detect'
 
 const minHeight = 300
 const defaultVolume = .5
@@ -12,7 +13,7 @@ const twitchPurple = "#9147ff"
 const style= {
   bar: showBar => ({
     background: "#333333",
-    height: showBar ? 52 : 0,
+    minHeight: showBar ? 52 : 0,
     display: showBar ? "flex" : "none",
     justifyContent: "center",
     flexDirection: "row",
@@ -37,10 +38,12 @@ const style= {
     MsUserSelect: "none",
     height: "26px",
     boxShadow: isActive ? `inset 1px 1px 3px ${twitchPurple}, inset -1px -1px 3px ${twitchPurple}` : "",
+    whiteSpace: "nowrap",
   }),
   link: {
     color: "#bdbdbd",
     textDecoration: "none",
+    whiteSpace: "nowrap",
   },
   control: {
     margin: "9px",
@@ -93,7 +96,7 @@ const videoWithTimestampRE = new RegExp(`(${vId})(?:\\?t=(${duration}))?`)
 function findBoxSize(windowSize, boxes, ratio, showTopBar, showBottomBar) {
   const adjustedWindowSize = {
     width: windowSize.width,
-    height: windowSize.height-(style.bar(showTopBar).height+style.bar(showBottomBar).height),
+    height: windowSize.height-(style.bar(showTopBar).minHeight+style.bar(showBottomBar).minHeight),
   }
   let bestBox = {width: minHeight*ratio, height: minHeight}
   // let bestBox = {width: 0, height: 0}
@@ -245,7 +248,7 @@ function App() {
 
   const getVod = (vodId) => {
     return fetch(`https://gql.twitch.tv/gql`, {
-      method: `POST`,
+      method: `POST`, // eslint-disable-next-line
       body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    createdAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
@@ -438,7 +441,7 @@ function App() {
       }
       syncVods(initialSync, false)
       setInitialSync(null)
-    }
+    } // eslint-disable-next-line
   }, [vodState])
 
   return (
@@ -452,8 +455,13 @@ function App() {
       }}
     >
       {/* Header */}
-      <div style={{...style.bar(showTopBar)}}>
+      <div style={{
+        ...style.bar(showTopBar),
+        padding: "0px 5px",
+        justifyContent: isMobile ? "flex-start" : style.bar(showTopBar).justifyContent,
+      }}>
         {/* Left of input */}
+        {!isMobile &&
         <div style={{display: "flex", flexGrow: 1, flexBasis: 0, alignItems: "center"}}>
           {/* Error message */}
           <div style={{
@@ -483,18 +491,24 @@ function App() {
             />
           </div>
         </div>
+        }
         {/* Inputs */}
-        <div style={style.buttonContainer}>
+        <div style={{
+          ...style.buttonContainer,
+          flexGrow: 1,
+          justifyContent: "center",
+          maxWidth: isMobile ? "350px" : "450px",
+        }}>
           <input
             type="text"
             value={newVodText}
             onChange={e => setNewVodText(e.target.value)}
-            size="50"
             placeholder="http://twitch.tv/videos/123456789 or 123456789"
             style={{
               ...style.textbox,
               paddingLeft: "5px",
               height: style.button(false).height,
+              width: "100%",
             }}
           />
           <div
@@ -524,7 +538,7 @@ function App() {
           >
             Add Video
           </div>
-          {/* Share */}
+          {/* Share button */}
           <div ref={shareWindow} style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
             <div style={{...style.button(false), marginLeft: "5px", position: "relative"}}
               onClick={() => {
@@ -537,13 +551,14 @@ function App() {
             >
               Share
             </div>
-            {/* Actual share window */}
+            {/* Share window */}
             <div
               style={{
                 position: "absolute",
                 display: shareState.show ? "flex" : "none",
                 flexDirection: "column",
-                top: style.bar(true).height+1,
+                top: style.bar(true).minHeight+1,
+                left: isMobile ? "0px" : "",
                 background: "#757575",
                 borderRadius: "3px",
                 padding: "4px 3px 3px 10px",
@@ -615,17 +630,20 @@ function App() {
           </div>
         </div>
         {/* Right of input */}
+        {!isMobile &&
         <div
           style={{
             flexGrow: 1,
             flexBasis: 0,
+            marginLeft: "10px",
             display: "flex",
             justifyContent: "flex-end",
             alignItems: "center",
-          }}>
+          }}
+        >
           <a href="https://github.com/henryperson/twitchmultivod" style={{...style.link, marginRight: "20px", fontSize: "14px"}}>Source</a>
           <a href="https://www.buymeacoffee.com/henryperson" style={{...style.link, marginRight: "60px", fontSize: "14px"}}>Buy Me Coffee</a>
-        </div>
+        </div>}
       </div>
       {/* Hide/show top/bottom bar icons */}
       <FontAwesomeIcon
@@ -634,12 +652,15 @@ function App() {
         icon={showTopBar ? faAngleUp : faAngleDown}
         onClick={() => setShowTopBar(!showTopBar)}
       />
+      {/* Only show bottom bar if we're on desktop */}
+      {!isMobile &&
       <FontAwesomeIcon
         className="showhide"
         style={{...style.angle(showBottomBar), bottom: 0}}
         icon={showBottomBar ? faAngleDown: faAngleUp}
         onClick={() => setShowBottomBar(!showBottomBar)}
       />
+      }
       {/* Main body */}
       <div
         style={{
@@ -665,6 +686,7 @@ function App() {
               flexDirection: "column",
               alignItems: "flex-start",
               width: "580px",
+              margin: "20px",
             }}
           >
             <div style={{
@@ -845,33 +867,43 @@ function App() {
           ...style.bar(showBottomBar),
         }}
       >
-        <div style={{...style.buttonContainer, flex: "1 0 0", justifyContent: "flex-start"}}>
-        <div style={{...style.button(false), margin: "10px"}}
-            onClick={() => {
-              if (vodState.vods.length > 0) {
-                // Find the latest vod.
-                let latestVod = vodState.vods[0]
-                for (let vod of vodState.vods) {
-                  if (vod.start > latestVod.start) {
-                    latestVod = vod
+        <div style={{
+          ...style.buttonContainer,
+          flex: "1 0 0",
+          justifyContent: "flex-start",
+          marginRight: isMobile ? "10px" : "20px",
+        }}>
+          <div style={{...style.button(false), margin: "10px"}}
+              onClick={() => {
+                if (vodState.vods.length > 0) {
+                  // Find the latest vod.
+                  let latestVod = vodState.vods[0]
+                  for (let vod of vodState.vods) {
+                    if (vod.start > latestVod.start) {
+                      latestVod = vod
+                    }
                   }
+                  syncVods(latestVod.start, true)
                 }
-                syncVods(latestVod.start, true)
               }
-            }}
+            }
           >
             Earliest Sync
           </div>
+          {!isMobile &&
           <div style={{...style.button(smartMute), margin: "10px", width: "95px"}}
             onClick={() => setSmartMute(!smartMute)}
           >
             Smart Mute {smartMute ? "On" : "Off"}
           </div>
+          }
+          {!isMobile &&
           <div style={{...style.button(smartPlay), margin: "10px", width: "95px"}}
             onClick={() => setSmartPlay(!smartPlay)}
           >
             Smart Play {smartPlay ? "On" : "Off"}
           </div>
+          }
         </div>
         {/* Central controls */}
         <div style={style.buttonContainer}>
