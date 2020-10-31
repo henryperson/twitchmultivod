@@ -208,14 +208,6 @@ function toTwitchTime(seconds) {
 const urlPath = window.location.hash.substr(2)
 
 function App() {
-  const [authToken, setAuthToken] = React.useState("")
-  React.useEffect(() => {
-    fetch(`https://id.twitch.tv/oauth2/token?client_id=${process.env.REACT_APP_TWITCH_CLIENT_ID}&client_secret=${process.env.REACT_APP_TWITCH_SECRET}&grant_type=client_credentials`, {
-      method: 'POST',
-    })
-      .then(resp => resp.json())
-      .then(data => setAuthToken(data.access_token))
-  }, [])
 
   const [vodState, setVodState] = React.useState({
     active: -1,
@@ -252,20 +244,20 @@ function App() {
   const boxSize = findBoxSize(windowSize, vodState.vods.length, 16/9, showTopBar, showBottomBar)
 
   const getVod = (vodId) => {
-    return fetch(`https://api.twitch.tv/helix/videos?id=${vodId}`, {
+    return fetch(`https://gql.twitch.tv/gql`, {
+      method: `POST`,
+      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    createdAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
-        "Authorization": `Bearer ${authToken}`,
-        "Client-Id": process.env.REACT_APP_TWITCH_CLIENT_ID,
+        "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
     })
       .then(resp => resp.json())
       .then(data => {
-        if (data.error === undefined) {
+        if (data.data.video) {
           // Find starting and ending times for this video.
-          const vodData = data.data["0"]
+          const vodData = data.data.video
           const start = new Date(vodData.created_at)
           const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
-
           return {
             id: vodId,
             start: start,
@@ -375,7 +367,7 @@ function App() {
   })
 
   React.useEffect(() => {
-    if (urlPath && authToken) {
+    if (urlPath) {
       console.log(urlPath)
       // Parse videos out of the urlPath and check that they are valid ID strings. Also, if there
       // is a timestamp, store it.
@@ -434,7 +426,7 @@ function App() {
         }
       })
     }
-  }, [authToken])
+  }, [])
 
   React.useEffect(() => {
     if (initialSync) {
