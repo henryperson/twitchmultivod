@@ -32,7 +32,7 @@ const style= {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    pointer: "cursor",
+    cursor: "pointer",
     WebkitUserSelect: "none",
     MozUserSelect: "none",
     MsUserSelect: "none",
@@ -51,6 +51,7 @@ const style= {
     WebkitUserSelect: "none",
     MozUserSelect: "none",
     MsUserSelect: "none",
+    cursor: "pointer",
   },
   playPause: {
     width: "28px",
@@ -73,6 +74,7 @@ const style= {
     position: "absolute",
     right: 0,
     zIndex: 2,
+    cursor: "pointer",
   }),
   textbox: {
     background: "#cfcfcf",
@@ -486,6 +488,7 @@ function App() {
                 padding: "3px",
                 marginLeft: "7px",
                 borderRadius: "2px",
+                cursor: "pointer",
               }}
               onClick={() => {setError("")}}
             />
@@ -573,6 +576,7 @@ function App() {
                     height: "18px",
                     padding: "2px",
                     borderRadius: "3px",
+                    cursor: "pointer",
                   }}
                   onClick={() => {setShareState({...shareState, show: false})}}
                 />
@@ -598,6 +602,7 @@ function App() {
                     marginRight: "-2px",
                     padding: "6px",
                     borderRadius: "50%",
+                    cursor: "pointer",
                   }}
                   onClick={() => {
                     shareText.current.select()
