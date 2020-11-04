@@ -4,6 +4,10 @@ import ReactPlayer from 'react-player/twitch'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlay, faPause, faRedo, faUndo, faAngleUp, faAngleDown, faTimes, faCopy} from '@fortawesome/free-solid-svg-icons'
 import {isMobile} from 'react-device-detect'
+import ReactGA from 'react-ga';
+
+ReactGA.initialize('UA-161745919-3')
+ReactGA.pageview("/" + window.location.hash)
 
 const minHeight = 300
 const defaultVolume = .5
