@@ -275,8 +275,10 @@ function App() {
             buttonTimeoutRef: React.createRef(),
             vodData: vodData,
           }
+        } else {
+          throw new Error(`Video ${vodId} unavailable`)
         }
-      }).catch(error => setError(`Error adding video: ${error}`))
+      })
   }
 
   const syncVods = (time, mustSyncAll) => {
@@ -405,7 +407,8 @@ function App() {
         vodPromises.push(getVod(vodId))
       }
       // Wait for all vods to finish loading, then set their state.
-      Promise.all(vodPromises).then((vods) => {
+      Promise.all(vodPromises)
+      .then((vods) => {
         // If we don't need to sync to a time, then just set state.
         if (!syncVod) {
           setVodState({
@@ -427,6 +430,9 @@ function App() {
             vods: vods
           })
         }
+      })
+      .catch(error => {
+        setError(`Error loading link: ${error.message}`)
       })
     }
   }, [])
@@ -523,16 +529,15 @@ function App() {
                 const vodId = match[2] === undefined ? match[1] : match[2]
                 getVod(vodId)
                 .then((vod) => {
-                  try {
-                    const isFirstVod = (vodState.vods.length === 0)
-                    vod.muted = !isFirstVod
-                    setVodState({
-                      active: isFirstVod ? 0 : vodState.active,
-                      vods: vodState.vods.concat(vod)
-                    })
-                  } catch (error) {
-                    setError(`Could not add video ${vodId}. Make sure this ID refers to a real video!`)
-                  }
+                  const isFirstVod = (vodState.vods.length === 0)
+                  vod.muted = !isFirstVod
+                  setVodState({
+                    active: isFirstVod ? 0 : vodState.active,
+                    vods: vodState.vods.concat(vod)
+                  })
+                })
+                .catch(error => {
+                  setError(`Could not add video: ${error.message}`)
                 })
               } else {
                 // No match, show error.
