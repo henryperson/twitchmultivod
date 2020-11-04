@@ -275,8 +275,6 @@ function App() {
             buttonTimeoutRef: React.createRef(),
             vodData: vodData,
           }
-        } else {
-          setError(`API Error: ${data.error}, message: ${data.message} (status: ${data.status})`)
         }
       }).catch(error => setError(`Error adding video: ${error}`))
   }
@@ -525,12 +523,16 @@ function App() {
                 const vodId = match[2] === undefined ? match[1] : match[2]
                 getVod(vodId)
                 .then((vod) => {
-                  const isFirstVod = (vodState.vods.length === 0)
-                  vod.muted = !isFirstVod
-                  setVodState({
-                    active: isFirstVod ? 0 : vodState.active,
-                    vods: vodState.vods.concat(vod)
-                  })
+                  try {
+                    const isFirstVod = (vodState.vods.length === 0)
+                    vod.muted = !isFirstVod
+                    setVodState({
+                      active: isFirstVod ? 0 : vodState.active,
+                      vods: vodState.vods.concat(vod)
+                    })
+                  } catch (error) {
+                    setError(`Could not add video ${vodId}. Make sure this ID refers to a real video!`)
+                  }
                 })
               } else {
                 // No match, show error.
