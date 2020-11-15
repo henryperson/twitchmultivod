@@ -260,29 +260,29 @@ function App() {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
     })
-      .then(resp => resp.json())
-      .then(data => {
-        if (data.data.video) {
-          // Find starting and ending times for this video.
-          const vodData = data.data.video
-          const start = new Date(vodData.createdAt)
-          const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
-          return {
-            id: vodId,
-            start: start,
-            end: end,
-            ref: React.createRef(),
-            playing: false,
-            volume: defaultVolume,
-            muted: true,
-            showButtons: false,
-            buttonTimeoutRef: React.createRef(),
-            vodData: vodData,
-          }
-        } else {
-          throw new Error(`Video ${vodId} unavailable`)
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.data.video) {
+        // Find starting and ending times for this video.
+        const vodData = data.data.video
+        const start = new Date(vodData.createdAt)
+        const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
+        return {
+          id: vodId,
+          start: start,
+          end: end,
+          ref: React.createRef(),
+          playing: false,
+          volume: defaultVolume,
+          muted: true,
+          showButtons: false,
+          buttonTimeoutRef: React.createRef(),
+          vodData: vodData,
         }
-      })
+      } else {
+        throw new Error(`Video ${vodId} unavailable`)
+      }
+    })
   }
 
   const syncVods = (time, mustSyncAll) => {
@@ -484,7 +484,7 @@ function App() {
             background: "#757575",
             boxShadow: "0 0 0 1px #b50000",
             borderRadius: "2px",
-            maxHeight: `${style.bar(true).height-8}px`,
+            maxHeight: `${style.bar(true).minHeight-8}px`,
             overflow: "scroll",
             boxSizing: "border-box",
           }}>
@@ -689,6 +689,7 @@ function App() {
           flexBasis: 0,
           flexWrap: "wrap",
           minWidth: "0%",
+          overflow: "hidden",
         }}
       >
         {vodState.vods.length === 0 &&
