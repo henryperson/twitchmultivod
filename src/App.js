@@ -657,8 +657,28 @@ function App() {
             alignItems: "center",
           }}
         >
-          <a href="https://github.com/henryperson/twitchmultivod" style={{...style.link, marginRight: "20px", fontSize: "14px"}}>Source</a>
-          <a href="https://www.buymeacoffee.com/henryperson" style={{...style.link, marginRight: "60px", fontSize: "14px"}}>Buy Me Coffee</a>
+          <a href="https://github.com/henryperson/twitchmultivod"
+            style={{...style.link, marginRight: "20px", fontSize: "14px"}}
+            onClick={() => {
+              ReactGA.event({
+                category: 'Link',
+                action: 'Github',
+              });
+            }}
+          >
+            Source
+          </a>
+          <a href="https://www.twitch.tv/mcurzi"
+            style={{...style.link, marginRight: "60px", fontSize: "14px"}}
+            onClick={() => {
+              ReactGA.event({
+                category: 'Link',
+                action: 'Follow',
+              });
+            }}
+            >
+              Follow My Friend
+            </a>
         </div>}
       </div>
       {/* Hide/show top/bottom bar icons */}
