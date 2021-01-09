@@ -677,7 +677,7 @@ function App() {
               });
             }}
             >
-              Follow My Friend
+              Follow
             </a>
         </div>}
       </div>
