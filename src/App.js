@@ -9,7 +9,7 @@ import ReactGA from 'react-ga';
 ReactGA.initialize('UA-161745919-3')
 ReactGA.pageview("/" + window.location.hash)
 
-const minHeight = 300
+const minHeight = 225
 const defaultVolume = .5
 const progressInterval = 1000
 const twitchPurple = "#9147ff"
@@ -215,6 +215,12 @@ function toTwitchTime(seconds) {
 }
 
 const urlPath = window.location.hash.substr(2)
+// Track the initial timestamped VOD and its initial timestamp so we don't remove it from the URL
+// when updating it.
+let initialTimestampedVOD = {
+  id: "",
+  timestamp: "",
+}
 
 function App() {
 
@@ -304,27 +310,30 @@ function App() {
     }
   }
 
-  const getTimestamp = () => {
-    if (vodState.active === -1) {
+  const getTimestamp = (timestampIndex) => {
+    if (timestampIndex === -1) {
       return toTwitchTime(vodState.vods[0].ref.current.getCurrentTime())
     } else {
-      return toTwitchTime(vodState.vods[vodState.active].ref.current.getCurrentTime())
+      return toTwitchTime(vodState.vods[timestampIndex].ref.current.getCurrentTime())
     }
   }
 
   const getLink = (useTimestamp) => {
     const base = window.location.origin+"/#"
-    let vods = ""
     let timestampIndex = vodState.active === -1 ? 0 : vodState.active
+    let timestamp = getTimestamp(timestampIndex)
+    let vods = getLinkRoute(timestampIndex, timestamp)
+    return `${base}${vods}`
+  }
+
+  // This returns everything after the "#" in a link. For no timestamp, pass -1 for timestampIndex.
+  const getLinkRoute = (timestampIndex, timestamp) => {
+    let vods = ""
     for (let i = 0; i < vodState.vods.length; i++) {
       const vod = vodState.vods[i]
-      let timestamp = ""
-      if (useTimestamp && i === timestampIndex) {
-        timestamp = getTimestamp()
-      }
-      vods = timestamp === "" ? `${vods}/${vod.id}` : `${vods}/${vod.id}?t=${timestamp}`
+      vods = i === timestampIndex ? `${vods}/${vod.id}?t=${timestamp}` : `${vods}/${vod.id}`
     }
-    return `${base}${vods}`
+    return vods
   }
 
   // In charge of making sure vods maintain a single mute.
@@ -333,14 +342,12 @@ function App() {
     const interval = setInterval(() => {
       try {
         if (smartMute) {
-          let anyActive = false
           let newActive = -1
           for (let i = 0; i < vodState.vods.length; i++) {
             let player = vodState.vods[i].ref.current.getInternalPlayer()
             if (player !== undefined) {
               let muted = player.getMuted()
               if (!muted) {
-                anyActive = true
                 // If this is a new active vod, remember it.
                 if (i !== vodState.active) {
                   newActive = i
@@ -355,11 +362,6 @@ function App() {
             }
             setVodState({
               active: newActive,
-              vods: vodState.vods,
-            })
-          } else {
-            setVodState({
-              active: anyActive ? vodState.active : -1,
               vods: vodState.vods,
             })
           }
@@ -405,6 +407,7 @@ function App() {
             setError(`URL has multiple timestamps: ${vodIdStr}`)
             return
           } else {
+            initialTimestampedVOD = {id: vodId, timestamp: match[2]}
             syncVod = {milliseconds: getMilliseconds(match[2]), id: vodId}
           }
         }
@@ -452,6 +455,24 @@ function App() {
       syncVods(initialSync, false)
       setInitialSync(null)
     } // eslint-disable-next-line
+  }, [vodState])
+
+  // In charge of updating the URL with vods added.
+  React.useEffect(() => {
+    console.log("running url update")
+    if (vodState.vods.length > 0) {
+      // Get index of initial timestamped VOD if it's there.
+      let initialIndex = -1
+      for (let i = 0; i < vodState.vods.length; i++) {
+        const vod = vodState.vods[i]
+        if (vod.id === initialTimestampedVOD.id) {
+          initialIndex = i
+        }
+      }
+      // If initialIndex is -1, this won't return a timestamp.
+      let route = getLinkRoute(initialIndex, initialTimestampedVOD.timestamp)
+      window.location.hash = route
+    }
   }, [vodState])
 
   return (
@@ -560,7 +581,8 @@ function App() {
                   setError("You can't share before adding videos!")
                   return
                 }
-                setShareState({...shareState, url: getLink(shareState.useTimestamp), show: !shareState.show, timestamp: getTimestamp()})
+                let timestampIndex = vodState.active === -1 ? 0 : vodState.active
+                setShareState({...shareState, url: getLink(shareState.useTimestamp), show: !shareState.show, timestamp: getTimestamp(timestampIndex)})
               }}
             >
               Share
@@ -626,11 +648,12 @@ function App() {
                   type="checkbox"
                   checked={shareState.useTimestamp}
                   onChange={(e) => {
+                    let timestampIndex = vodState.active === -1 ? 0 : vodState.active
                     setShareState({
                       ...shareState,
                       useTimestamp: e.target.checked,
                       url: getLink(e.target.checked),
-                      timestamp: getTimestamp(),
+                      timestamp: getTimestamp(timestampIndex),
                     })
                   }}
                 />
@@ -705,11 +728,10 @@ function App() {
           flexDirection: "row",
           justifyContent: "center",
           alignItems: "center",
-          alignContent: "center",
           flexBasis: 0,
           flexWrap: "wrap",
           minWidth: "0%",
-          overflow: "hidden",
+          overflow: "scroll",
         }}
       >
         {vodState.vods.length === 0 &&
@@ -760,11 +782,14 @@ function App() {
             <div
               key={index}
               style={{
+                display: "flex",
                 width: boxSize.width,
                 height: boxSize.height,
                 boxSizing: "border-box",
                 padding: "2px",
                 position: "relative",
+                marginTop: "auto",
+                marginBottom: "auto",
               }}
               onMouseEnter={() => {
                 vod.showButtons = true
