@@ -506,7 +506,7 @@ function App() {
             boxShadow: "0 0 0 1px #b50000",
             borderRadius: "2px",
             maxHeight: `${style.bar(true).minHeight-8}px`,
-            overflow: "scroll",
+            overflow: "auto",
             boxSizing: "border-box",
           }}>
             <div>{error}</div>
@@ -731,7 +731,7 @@ function App() {
           flexBasis: 0,
           flexWrap: "wrap",
           minWidth: "0%",
-          overflow: "scroll",
+          overflow: "auto",
         }}
       >
         {vodState.vods.length === 0 &&
