@@ -379,7 +379,6 @@ function App() {
 
   React.useEffect(() => {
     if (urlPath) {
-      console.log(urlPath)
       // Parse videos out of the urlPath and check that they are valid ID strings. Also, if there
       // is a timestamp, store it.
       const vodIds = urlPath.split("/")
@@ -459,7 +458,6 @@ function App() {
 
   // In charge of updating the URL with vods added.
   React.useEffect(() => {
-    console.log("running url update")
     if (vodState.vods.length > 0) {
       // Get index of initial timestamped VOD if it's there.
       let initialIndex = -1
@@ -472,6 +470,8 @@ function App() {
       // If initialIndex is -1, this won't return a timestamp.
       let route = getLinkRoute(initialIndex, initialTimestampedVOD.timestamp)
       window.location.hash = route
+    } else {
+      window.location.hash = ""
     }
   }, [vodState])
 
