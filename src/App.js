@@ -564,6 +564,11 @@ function App() {
                 .catch(error => {
                   setError(`Could not add video: ${error.message}`)
                 })
+                ReactGA.event({
+                  category: 'Video',
+                  action: 'Add',
+                  label: vodId,
+                });
               } else {
                 // No match, show error.
                 setError(`Could not parse video from text "${newVodText}"`)
@@ -691,16 +696,16 @@ function App() {
           >
             Source
           </a>
-          <a href="https://www.twitch.tv/mcurzi"
+          <a href="https://www.buymeacoffee.com/henryperson"
             style={{...style.link, marginRight: "60px", fontSize: "14px"}}
             onClick={() => {
               ReactGA.event({
                 category: 'Link',
-                action: 'Follow',
+                action: 'Donate',
               });
             }}
             >
-              Follow
+              Donate
             </a>
         </div>}
       </div>
