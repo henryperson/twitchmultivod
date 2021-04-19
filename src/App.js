@@ -261,7 +261,7 @@ function App() {
   const getVod = (vodId) => {
     return fetch(`https://gql.twitch.tv/gql`, {
       method: `POST`, // eslint-disable-next-line
-      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    createdAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
+      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    recordedAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
@@ -271,7 +271,7 @@ function App() {
       if (data.data.video) {
         // Find starting and ending times for this video.
         const vodData = data.data.video
-        const start = new Date(vodData.createdAt)
+        const start = new Date(vodData.recordedAt)
         const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
         return {
           id: vodId,
@@ -321,6 +321,7 @@ function App() {
   const getLink = (useTimestamp) => {
     const base = window.location.origin+"/#"
     let timestampIndex = vodState.active === -1 ? 0 : vodState.active
+    timestampIndex = useTimestamp ? timestampIndex : -1
     let timestamp = getTimestamp(timestampIndex)
     let vods = getLinkRoute(timestampIndex, timestamp)
     return `${base}${vods}`
@@ -457,7 +458,14 @@ function App() {
   }, [vodState])
 
   // In charge of updating the URL with vods added.
+  const firstRender = React.useRef(true)
   React.useEffect(() => {
+    // Skip first render.
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    // If this isn't the first render act normally.
     if (vodState.vods.length > 0) {
       // Get index of initial timestamped VOD if it's there.
       let initialIndex = -1
