@@ -334,7 +334,7 @@ function App() {
           let v = obj.node
           let vodStart = new Date(v.recordedAt)
           let vodEnd = new Date(vodStart.getTime() + getMilliseconds(v.duration))
-          if (((vodStart <= start) && (start <= vodEnd)) || ((vodStart <= end) && (end <= vodEnd)) || (start <= vodStart) && (vodEnd <= end)) {
+          if ((vodStart <= start && start <= vodEnd) || (vodStart <= end && end <= vodEnd) || (start <= vodStart && vodEnd <= end)) {
             vods.push(formatNewVod(v))
           } else if (vodEnd < start) {
             return vods
