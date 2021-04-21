@@ -89,6 +89,14 @@ const style= {
   instructions: {
     fontSize: "15px",
     marginTop: "8px",
+  },
+  popup: {
+    position: "absolute",
+    flexDirection: "column",
+    background: "#757575",
+    borderRadius: "3px",
+    padding: "3px 3px 3px 10px",
+    zIndex: 2,
   }
 }
 
@@ -97,6 +105,7 @@ const durationRE = new RegExp(`${duration}`)
 const vId = String.raw`\d\d\d\d\d\d\d\d\d`
 const videoIdRE = new RegExp(`^(${vId})$|.*twitch\\.tv\\/videos\\/(${vId})$`)
 const videoWithTimestampRE = new RegExp(`(${vId})(?:\\?t=(${duration}))?`)
+const validUsernameRE = new RegExp(`^[\\w\\d_]{1,50}$`)
 
 // Ratio is width:height.
 function findBoxSize(windowSize, boxes, ratio, showTopBar, showBottomBar) {
@@ -248,12 +257,18 @@ function App() {
     url: "",
     timestamp: "",
   })
+  const [chooseVodState, setChooseVodState] = React.useState({
+    show: false,
+    vods: [],
+  })
   const [error, setError] = React.useState("")
   const [initialSync, setInitialSync] = React.useState(null)
 
   const shareWindow = React.useRef()
   useOnClickOutside(shareWindow, () => setShareState({...shareState, show: false}))
   const shareText = React.useRef()
+  const chooseVodWindow = React.useRef()
+  useOnClickOutside(chooseVodWindow, () => setChooseVodState({show: false, vods: []}))
 
   const windowSize = useWindowSize()
   const boxSize = findBoxSize(windowSize, vodState.vods.length, 16/9, showTopBar, showBottomBar)
@@ -261,7 +276,7 @@ function App() {
   const getVod = (vodId) => {
     return fetch(`https://gql.twitch.tv/gql`, {
       method: `POST`, // eslint-disable-next-line
-      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    recordedAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
+      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    id\\n    recordedAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
@@ -271,22 +286,63 @@ function App() {
       if (data.data.video) {
         // Find starting and ending times for this video.
         const vodData = data.data.video
-        const start = new Date(vodData.recordedAt)
-        const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
-        return {
-          id: vodId,
-          start: start,
-          end: end,
-          ref: React.createRef(),
-          playing: false,
-          volume: defaultVolume,
-          muted: true,
-          showButtons: false,
-          buttonTimeoutRef: React.createRef(),
-          vodData: vodData,
-        }
+        return formatNewVod(vodData)
       } else {
         throw new Error(`Video ${vodId} unavailable`)
+      }
+    })
+  }
+
+  const formatNewVod = (vodData) => {
+    const start = new Date(vodData.recordedAt)
+    const end = new Date(start.getTime() + getMilliseconds(vodData.duration))
+    return {
+      id: vodData.id,
+      start: start,
+      end: end,
+      duration: vodData.duration,
+      ref: React.createRef(),
+      playing: false,
+      volume: defaultVolume,
+      muted: true,
+      showButtons: false,
+      buttonTimeoutRef: React.createRef(),
+      vodData: vodData,
+    }
+  }
+
+  const getVodsForUser = (username, start, end, cursor="", vods=[]) => {
+    const zeroDate = new Date(0)
+    return fetch(`https://gql.twitch.tv/gql`, {
+      method: `POST`, // eslint-disable-next-line
+      body: `{\"query\":\"query {\\n  user(login:\\\"${username}\\\") {\\n    videos(first: 1, after: \\\"${cursor}\\\") {\\n      edges {\\n        cursor\\n        node {\\n          id\\n          recordedAt\\n          duration\\n        }\\n      }\\n    }\\n  }\\n}\\n\",\"variables\":null}`,
+      headers: {
+        "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+      }
+    })
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.data.user) {
+        let objs = data.data.user.videos.edges
+        if (objs.length === 0) {
+          throw new Error(`user "${username}" has no VODs`)
+        }
+        if (start.getTime() === zeroDate.getTime()) {
+          return [formatNewVod(objs[0].node)]
+        }
+        for (let obj of objs) {
+          let v = obj.node
+          let vodStart = new Date(v.recordedAt)
+          let vodEnd = new Date(vodStart.getTime() + getMilliseconds(v.duration))
+          if (((vodStart < start) && (start < vodEnd)) || ((vodStart < end) && (end < vodEnd))) {
+            vods.push(formatNewVod(v))
+          } else if (vodEnd < start) {
+            return vods
+          }
+        }
+        return getVodsForUser(username, start, end, objs[objs.length-1].cursor, vods)
+      } else {
+        throw new Error(`user "${username}" does not exist`)
       }
     })
   }
@@ -543,7 +599,7 @@ function App() {
             type="text"
             value={newVodText}
             onChange={e => setNewVodText(e.target.value)}
-            placeholder="http://twitch.tv/videos/123456789 or 123456789"
+            placeholder="http://twitch.tv/videos/123456789 or xqcow"
             style={{
               ...style.textbox,
               paddingLeft: "5px",
@@ -551,40 +607,149 @@ function App() {
               width: "100%",
             }}
           />
-          <div
-            style={{
-              ...style.button(false),
-              marginLeft: "5px",
-            }}
-            onClick={() => {
-              const match = newVodText.match(videoIdRE)
-              if (match !== null) {
-                const vodId = match[2] === undefined ? match[1] : match[2]
-                getVod(vodId)
-                .then((vod) => {
-                  const isFirstVod = (vodState.vods.length === 0)
-                  vod.muted = !isFirstVod
-                  setVodState({
-                    active: isFirstVod ? 0 : vodState.active,
-                    vods: vodState.vods.concat(vod)
+          {/* Add video button */}
+          <div ref={chooseVodWindow} style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
+            <div
+              style={{
+                ...style.button(false),
+                marginLeft: "5px",
+              }}
+              onClick={() => {
+                const vodMatch = newVodText.match(videoIdRE)
+                const usernameMatch = validUsernameRE.test(newVodText)
+                if (vodMatch !== null) {
+                  const vodId = vodMatch[2] === undefined ? vodMatch[1] : vodMatch[2]
+                  getVod(vodId)
+                  .then((vod) => {
+                    const isFirstVod = (vodState.vods.length === 0)
+                    vod.muted = !isFirstVod
+                    setVodState({
+                      active: isFirstVod ? 0 : vodState.active,
+                      vods: vodState.vods.concat(vod)
+                    })
                   })
-                })
-                .catch(error => {
-                  setError(`Could not add video: ${error.message}`)
-                })
-                ReactGA.event({
-                  category: 'Video',
-                  action: 'Add',
-                  label: vodId,
-                });
-              } else {
-                // No match, show error.
-                setError(`Could not parse video from text "${newVodText}"`)
-              }
-              setNewVodText("")
-            }}
-          >
-            Add Video
+                  .catch(error => {
+                    setError(`Could not add video: ${error.message}`)
+                  })
+                  ReactGA.event({
+                    category: 'Video',
+                    action: 'Add',
+                    label: vodId,
+                  });
+                } else if (usernameMatch) {
+                  // It's a valid username.
+
+                  // Get video data from username.
+                  let latestStart = new Date(0)
+                  let earliestEnd = new Date()
+                  for (let v of vodState.vods) {
+                    if (v.start > latestStart) {
+                      latestStart = v.start
+                    }
+                    if (v.end < earliestEnd) {
+                      earliestEnd = v.end
+                    }
+                  }
+                  if (latestStart > earliestEnd) {
+                    setError(`Videos are not syncable, so I won't find VODs.`)
+                    return
+                  }
+                  ReactGA.event({
+                    category: 'Video',
+                    action: 'Add',
+                    label: newVodText,
+                  });
+                  getVodsForUser(newVodText, latestStart, earliestEnd)
+                  .then(vods => {
+                    if (vods.length > 1) {
+                      setChooseVodState({show: true, vods: vods})
+                    } else if (vods.length === 1) {
+                      let vod = vods[0]
+                      const isFirstVod = (vodState.vods.length === 0)
+                      vod.muted = !isFirstVod
+                      setVodState({
+                        active: isFirstVod ? 0 : vodState.active,
+                        vods: vodState.vods.concat(vod)
+                      })
+                    } else if (vods.length === 0) {
+                      setError(`No vods from ${newVodText} occur during these videos.`)
+                    }
+                  })
+                  .catch(error => {
+                    setError(`Can't get video: ${error.message}`)
+                  })
+                } else {
+                  setError(`Could not parse video ID or username from "${newVodText}"`)
+                }
+                setNewVodText("")
+              }}
+            >
+              Add Video
+            </div>
+            <div
+              style={{
+                display: chooseVodState.show ? "flex" : "none",
+                top: style.bar(true).minHeight+1,
+                ...style.popup,
+              }}
+            >
+              {/* Header of add video element */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "3px",
+                }}>
+                <div style={{fontSize: "14px"}}>Choose video</div>
+                <FontAwesomeIcon icon={faTimes} className="shareButton"
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    padding: "2px",
+                    borderRadius: "3px",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {setChooseVodState({show: false, vods: []})}}
+                />
+              </div>
+              {/* Render each VOD as an addable VOD */}
+              {chooseVodState.vods.map((vod, index) => {
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      paddingBottom: "5px",
+                      fontSize: "14px",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                    key={index}
+                  >
+                    <div><a href={`https://twitch.tv/videos/${vod.id}`}>{vod.id}</a> (duration: {vod.duration})</div>
+                    <div
+                      style={{
+                        ...style.button(false),
+                        height: "20px",
+                        margin: "1px 7px 1px 15px",
+
+                      }}
+                      onClick={() => {
+                        const isFirstVod = (vodState.vods.length === 0)
+                        vod.muted = !isFirstVod
+                        setVodState({
+                          active: isFirstVod ? 0 : vodState.active,
+                          vods: vodState.vods.concat(vod)
+                        })
+                        setChooseVodState({show: false, vods: []})
+                      }}
+                    >
+                      Add
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
           {/* Share button */}
           <div ref={shareWindow} style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
@@ -603,15 +768,9 @@ function App() {
             {/* Share window */}
             <div
               style={{
-                position: "absolute",
                 display: shareState.show ? "flex" : "none",
-                flexDirection: "column",
                 top: style.bar(true).minHeight+1,
-                left: isMobile ? "0px" : "",
-                background: "#757575",
-                borderRadius: "3px",
-                padding: "4px 3px 3px 10px",
-                zIndex: 2,
+                ...style.popup,
               }}
             >
               <div style={{display: "flex", justifyContent: "space-between"}}>
@@ -748,46 +907,67 @@ function App() {
         }}
       >
         {vodState.vods.length === 0 &&
-          <div
-            style={{
-              color: style.link.color,
-              boxShadow: `0 0 0 1px ${style.link.color}`,
-              borderRadius: "2px",
-              padding: "15px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
-              width: "580px",
-              margin: "20px",
-            }}
-          >
-            <div style={{
-              alignSelf: "center",
-              marginBottom: "15px",
-              fontSize: style.instructions.fontSize+2
-            }}>Instructions</div>
-            <div style={style.instructions}>1. Copy the links or ids of the VODs you want to watch
-            (one at a time) into the text box at the top and click "Add Video".</div>
-            <div style={style.instructions}>2. Find a point in a video where you want to watch, and
-            use that video's "Sync To This" button to watch all videos at that real time. You can
-            also use "Earliest Sync" to sync all videos to the earliest time where they were all live.</div>
-            <div style={style.instructions}>3. Click "Share" to get a link to the set of videos you
-            are watching and (optionally) a timestamp to sync them all to. The timestamp is whichever
-            video is unmuted at the time, and if they're all muted it defaults to the first video.</div>
-
-            <div style={style.instructions}>Other controls:</div>
-            <div style={style.instructions}>
-              <ul style={{paddingLeft: "20px", margin: "6px 0px"}}>
-                <li>Smart mute forces at most one video to be unmuted</li>
-                <li>Smart play forces all videos to pause/play together. You can use it to
-                get a bit more fine grained control over video sync, as it's not perfect.</li>
-                <li>Controls at the bottom apply to all videos. The skips go forward/back by 10 seconds.</li>
-                <li>The arrows on the top/bottom bars will show/hide those bars, if you want the extra space.</li>
-              </ul>
+          <div>
+            <div
+              style={{
+                color: style.link.color,
+                boxShadow: `0 0 0 1px yellow`,
+                borderRadius: "2px",
+                padding: "15px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                width: "580px",
+                margin: "20px",
+              }}
+            >
+            <div style={{fontSize: style.instructions.fontSize}}>
+              Announcement: there is a new feature on this site! If you have VODs open, you can type in the name
+              of another streamer whose VOD you want to add. If that streamer has a VOD that overlaps with the VOD(s)
+              you have active, then it will be added automatically. If there are multiple such videos, you can choose
+              which to add.</div>
             </div>
-            <div style={style.instructions}>Sorry if it's not perfect, I am limited in annoying
-            ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchmultivod/issues">here</a>.</div>
-            <div style={style.instructions}>Hope you enjoy!</div>
+            <div
+              style={{
+                color: style.link.color,
+                boxShadow: `0 0 0 1px ${style.link.color}`,
+                borderRadius: "2px",
+                padding: "15px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                width: "580px",
+                margin: "20px",
+              }}
+            >
+              <div style={{
+                alignSelf: "center",
+                marginBottom: "15px",
+                fontSize: style.instructions.fontSize+2
+              }}>Instructions</div>
+              <div style={style.instructions}>1. Copy the links or ids of the VODs you want to watch
+              (one at a time) into the text box at the top and click "Add Video".</div>
+              <div style={style.instructions}>2. Find a point in a video where you want to watch, and
+              use that video's "Sync To This" button to watch all videos at that real time. You can
+              also use "Earliest Sync" to sync all videos to the earliest time where they were all live.</div>
+              <div style={style.instructions}>3. Click "Share" to get a link to the set of videos you
+              are watching and (optionally) a timestamp to sync them all to. The timestamp is whichever
+              video is unmuted at the time, and if they're all muted it defaults to the first video.</div>
+
+              <div style={style.instructions}>Other controls:</div>
+              <div style={style.instructions}>
+                <ul style={{paddingLeft: "20px", margin: "6px 0px"}}>
+                  <li>Smart mute forces at most one video to be unmuted</li>
+                  <li>Smart play forces all videos to pause/play together. You can use it to
+                  get a bit more fine grained control over video sync, as it's not perfect.</li>
+                  <li>Controls at the bottom apply to all videos. The skips go forward/back by 10 seconds.</li>
+                  <li>The arrows on the top/bottom bars will show/hide those bars, if you want the extra space.</li>
+                </ul>
+              </div>
+              <div style={style.instructions}>Sorry if it's not perfect, I am limited in annoying
+              ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchmultivod/issues">here</a>.</div>
+              <div style={style.instructions}>Hope you enjoy!</div>
+            </div>
           </div>
         }
         {vodState.vods.map((vod, index) => {
