@@ -208,9 +208,9 @@ function useOnClickOutside(ref, handler) {
 
 function getMilliseconds(durationString) {
   let match = durationString.match(durationRE)
-  const msFromSecs = parseInt(match[3]) * 1000
-  const msFromMins = parseInt(match[2]) * 60 * 1000
-  const msFromHours = parseInt(match[1]) * 60 * 60 * 1000
+  const msFromSecs = match[3] === undefined ? 0 : parseInt(match[3]) * 1000
+  const msFromMins = match[2] === undefined ? 0 : parseInt(match[2]) * 60 * 1000
+  const msFromHours = match[1] === undefined ? 0 : parseInt(match[1]) * 60 * 60 * 1000
   return msFromSecs + msFromMins + msFromHours
 }
 
@@ -334,7 +334,7 @@ function App() {
           let v = obj.node
           let vodStart = new Date(v.recordedAt)
           let vodEnd = new Date(vodStart.getTime() + getMilliseconds(v.duration))
-          if (((vodStart < start) && (start < vodEnd)) || ((vodStart < end) && (end < vodEnd))) {
+          if (((vodStart <= start) && (start <= vodEnd)) || ((vodStart <= end) && (end <= vodEnd)) || (start <= vodStart) && (vodEnd <= end)) {
             vods.push(formatNewVod(v))
           } else if (vodEnd < start) {
             return vods
