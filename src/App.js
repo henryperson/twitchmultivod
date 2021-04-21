@@ -315,7 +315,7 @@ function App() {
     const zeroDate = new Date(0)
     return fetch(`https://gql.twitch.tv/gql`, {
       method: `POST`, // eslint-disable-next-line
-      body: `{\"query\":\"query {\\n  user(login:\\\"${username}\\\") {\\n    videos(first: 1, after: \\\"${cursor}\\\") {\\n      edges {\\n        cursor\\n        node {\\n          id\\n          recordedAt\\n          duration\\n        }\\n      }\\n    }\\n  }\\n}\\n\",\"variables\":null}`,
+      body: `{\"query\":\"query {\\n  user(login:\\\"${username}\\\") {\\n    videos(first: 20, after: \\\"${cursor}\\\") {\\n      edges {\\n        cursor\\n        node {\\n          id\\n          recordedAt\\n          duration\\n        }\\n      }\\n    }\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
