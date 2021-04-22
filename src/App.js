@@ -143,6 +143,19 @@ function anyPlaying(vods) {
   return false
 }
 
+function daysSince(since) {
+  const now = new Date()
+  var hours = Math.abs(now - since) / 36e5
+  console.log(since, hours)
+  if (hours < 24) {
+    return "today"
+  } else if (Math.floor(hours / 24) === 1) {
+    return "1 day ago"
+  } else {
+    return `${Math.floor(hours/24)} days ago`
+  }
+}
+
 // Adapted from https://usehooks.com/useWindowSize/
 function useWindowSize() {
   // Initialize state with undefined width/height so server and client renders match
@@ -327,9 +340,6 @@ function App() {
         if (objs.length === 0) {
           throw new Error(`user "${username}" has no VODs`)
         }
-        if (start.getTime() === zeroDate.getTime()) {
-          return [formatNewVod(objs[0].node)]
-        }
         for (let obj of objs) {
           let v = obj.node
           let vodStart = new Date(v.recordedAt)
@@ -337,6 +347,10 @@ function App() {
           if ((vodStart <= start && start <= vodEnd) || (vodStart <= end && end <= vodEnd) || (start <= vodStart && vodEnd <= end)) {
             vods.push(formatNewVod(v))
           } else if (vodEnd < start) {
+            return vods
+          }
+          // This is when no VODs existed (thus no bounds). Return last 5 VODs.
+          if (start.getTime() === zeroDate.getTime() && vods.length === 5) {
             return vods
           }
         }
@@ -726,7 +740,9 @@ function App() {
                     }}
                     key={index}
                   >
-                    <div><a href={`https://twitch.tv/videos/${vod.id}`}>{vod.id}</a> (duration: {vod.duration})</div>
+                    <div>
+                      <a href={`https://twitch.tv/videos/${vod.id}`}>{vod.id}</a> ({daysSince(vod.start)}, {vod.duration})
+                    </div>
                     <div
                       style={{
                         ...style.button(false),
@@ -921,11 +937,16 @@ function App() {
                 margin: "20px",
               }}
             >
-            <div style={{fontSize: style.instructions.fontSize}}>
-              Announcement: there is a new feature on this site! If you have VODs open, you can type in the name
-              of another streamer whose VOD you want to add. If that streamer has a VOD that overlaps with the VOD(s)
-              you have active, then it will be added automatically. If there are multiple such videos, you can choose
-              which to add.</div>
+              <div style={{
+                alignSelf: "center",
+                marginBottom: "10px",
+                fontSize: style.instructions.fontSize+2
+              }}>Announcement</div>
+              <div style={{fontSize: style.instructions.fontSize}}>
+                New feature!
+                You can now add VODs using a streamer's name. If you have VODs open, it will automatically add a syncable VOD.
+                If you don't have anything open, it will let you choose from the streamer's last five VODs.
+                Hope you enjoy!</div>
             </div>
             <div
               style={{
