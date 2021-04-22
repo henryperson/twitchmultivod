@@ -289,7 +289,7 @@ function App() {
   const getVod = (vodId) => {
     return fetch(`https://gql.twitch.tv/gql`, {
       method: `POST`, // eslint-disable-next-line
-      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    id\\n    recordedAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
+      body: `{\"query\":\"query {\\n  video(id:\\\"${vodId}\\\") {\\n    id\\n    creator {displayName}\\n    recordedAt\\n    duration\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
@@ -321,6 +321,7 @@ function App() {
       showButtons: false,
       buttonTimeoutRef: React.createRef(),
       vodData: vodData,
+      username: vodData.creator.displayName,
     }
   }
 
@@ -328,7 +329,7 @@ function App() {
     const zeroDate = new Date(0)
     return fetch(`https://gql.twitch.tv/gql`, {
       method: `POST`, // eslint-disable-next-line
-      body: `{\"query\":\"query {\\n  user(login:\\\"${username}\\\") {\\n    videos(first: 20, after: \\\"${cursor}\\\") {\\n      edges {\\n        cursor\\n        node {\\n          id\\n          recordedAt\\n          duration\\n        }\\n      }\\n    }\\n  }\\n}\\n\",\"variables\":null}`,
+      body: `{\"query\":\"query {\\n  user(login:\\\"${username}\\\") {\\n    videos(first: 20, after: \\\"${cursor}\\\") {\\n      edges {\\n        cursor\\n        node {\\n          id\\n          creator {displayName}\\n          recordedAt\\n          duration\\n        }\\n      }\\n    }\\n  }\\n}\\n\",\"variables\":null}`,
       headers: {
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
       }
@@ -365,7 +366,7 @@ function App() {
     let syncVods = []
     for (let v of vodState.vods) {
       if (v.end < time || v.start > time) {
-        setError(`Cannot sync ${v.vodData.user_name} (id ${v.id})`)
+        setError(`Cannot sync ${v.username} (id ${v.id})`)
         if (mustSyncAll) {
           return
         }
