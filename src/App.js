@@ -928,7 +928,8 @@ function App() {
             <div
               style={{
                 color: style.link.color,
-                boxShadow: `0 0 0 1px yellow`,
+                boxShadow: `0 0 0 1px rgb(209, 160, 0)`,
+                background: "rgb(43, 33, 0)",
                 borderRadius: "2px",
                 padding: "15px",
                 display: "flex",
