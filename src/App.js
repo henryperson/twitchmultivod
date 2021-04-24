@@ -103,7 +103,7 @@ const style= {
 const duration = String.raw`(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)`
 const durationRE = new RegExp(`${duration}`)
 const vId = String.raw`\d\d\d\d\d\d\d\d\d`
-const videoIdRE = new RegExp(`^(${vId})$|.*twitch\\.tv\\/videos\\/(${vId})$`)
+const videoIdRE = new RegExp(`^(${vId})$|.*twitch\\.tv\\/videos\\/(${vId})(?:.*)?$`)
 const videoWithTimestampRE = new RegExp(`(${vId})(?:\\?t=(${duration}))?`)
 const validUsernameRE = new RegExp(`^[\\w\\d_]{1,50}$`)
 
