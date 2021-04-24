@@ -512,7 +512,7 @@ function App() {
       .catch(error => {
         setError(`Error loading link: ${error.message}`)
       })
-    }
+    } // eslint-disable-next-line
   }, [])
 
   React.useEffect(() => {
@@ -551,7 +551,7 @@ function App() {
       window.location.hash = route
     } else {
       window.location.hash = ""
-    }
+    } // eslint-disable-next-line
   }, [vodState])
 
   return (
@@ -934,7 +934,7 @@ function App() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "flex-start",
-                width: "580px",
+                maxWidth: "580px",
                 margin: "20px",
               }}
             >
@@ -958,7 +958,7 @@ function App() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "flex-start",
-                width: "580px",
+                maxWidth: "580px",
                 margin: "20px",
               }}
             >
