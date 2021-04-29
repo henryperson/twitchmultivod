@@ -880,6 +880,18 @@ function App() {
           >
             Source
           </a>
+          <a href="https://github.com/henryperson/twitchmultivod/issues/new"
+            style={{...style.link, marginRight: "20px", fontSize: "14px"}}
+            onClick={() => {
+              ReactGA.event({
+                category: 'Link',
+                action: 'Issue',
+              });
+            }}
+          >
+            Submit Issue
+          </a>
+
           <a href="https://www.buymeacoffee.com/henryperson"
             style={{...style.link, marginRight: "60px", fontSize: "14px"}}
             onClick={() => {
@@ -988,7 +1000,7 @@ function App() {
                 </ul>
               </div>
               <div style={style.instructions}>Sorry if it's not perfect, I am limited in annoying
-              ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchmultivod/issues">here</a>.</div>
+              ways by the Twitch API. If you notice a bug, feel free to report it <a href="https://github.com/henryperson/twitchmultivod/issues/new">here</a>.</div>
               <div style={style.instructions}>Hope you enjoy!</div>
             </div>
           </div>
