@@ -147,13 +147,12 @@ function anyPlaying(vods) {
 function daysSince(since) {
   const now = new Date()
   var hours = Math.abs(now - since) / 36e5
-  console.log(since, hours)
   if (hours < 24) {
     return "today"
-  } else if (Math.floor(hours / 24) === 1) {
-    return "1 day ago"
+  } else if (Math.round(hours / 24) === 1) {
+    return "yesterday"
   } else {
-    return `${Math.floor(hours/24)} days ago`
+    return `${Math.round(hours/24)} days ago`
   }
 }
 
