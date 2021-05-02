@@ -351,7 +351,7 @@ function App() {
             return vods
           }
           // This is when no VODs existed (thus no bounds). Return last 5 VODs.
-          if (start.getTime() === zeroDate.getTime() && vods.length === 5) {
+          if (start.getTime() === zeroDate.getTime() && vods.length === 7) {
             return vods
           }
         }
@@ -620,6 +620,7 @@ function App() {
               paddingLeft: "5px",
               height: style.button(false).height,
               width: "100%",
+              fontSize: isMobile? "16px" : "auto",
             }}
           />
           {/* Add video button */}
@@ -980,8 +981,8 @@ function App() {
                 marginBottom: "15px",
                 fontSize: style.instructions.fontSize+2
               }}>Instructions</div>
-              <div style={style.instructions}>1. Copy the links or ids of the VODs you want to watch
-              (one at a time) into the text box at the top and click "Add Video".</div>
+              <div style={style.instructions}>1. Enter a username, VOD link, or VOD ID into the text box
+              at the top and click "Add Video".</div>
               <div style={style.instructions}>2. Find a point in a video where you want to watch, and
               use that video's "Sync To This" button to watch all videos at that real time. You can
               also use "Earliest Sync" to sync all videos to the earliest time where they were all live.</div>
