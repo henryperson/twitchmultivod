@@ -408,6 +408,76 @@ function App() {
     return vods
   }
 
+  const addVodHandler = () => {
+    const vodMatch = newVodText.match(videoIdRE)
+    const usernameMatch = validUsernameRE.test(newVodText)
+    if (vodMatch !== null) {
+      const vodId = vodMatch[2] === undefined ? vodMatch[1] : vodMatch[2]
+      getVod(vodId)
+      .then((vod) => {
+        const isFirstVod = (vodState.vods.length === 0)
+        vod.muted = !isFirstVod
+        setVodState({
+          active: isFirstVod ? 0 : vodState.active,
+          vods: vodState.vods.concat(vod)
+        })
+      })
+      .catch(error => {
+        setError(`Could not add video: ${error.message}`)
+      })
+      ReactGA.event({
+        category: 'Video',
+        action: 'Add',
+        label: vodId,
+      });
+    } else if (usernameMatch) {
+      // It's a valid username.
+
+      // Get video data from username.
+      let latestStart = new Date(0)
+      let earliestEnd = new Date()
+      for (let v of vodState.vods) {
+        if (v.start > latestStart) {
+          latestStart = v.start
+        }
+        if (v.end < earliestEnd) {
+          earliestEnd = v.end
+        }
+      }
+      if (latestStart > earliestEnd) {
+        setError(`Videos are not syncable, so I won't find VODs.`)
+        return
+      }
+      ReactGA.event({
+        category: 'Video',
+        action: 'Add',
+        label: newVodText,
+      });
+      getVodsForUser(newVodText, latestStart, earliestEnd)
+      .then(vods => {
+        if (vods.length > 1) {
+          setChooseVodState({show: true, vods: vods})
+        } else if (vods.length === 1) {
+          let vod = vods[0]
+          const isFirstVod = (vodState.vods.length === 0)
+          vod.muted = !isFirstVod
+          setVodState({
+            active: isFirstVod ? 0 : vodState.active,
+            vods: vodState.vods.concat(vod)
+          })
+        } else if (vods.length === 0) {
+          setError(`No vods from ${newVodText} occur during these videos.`)
+        }
+      })
+      .catch(error => {
+        setError(`Can't get video: ${error.message}`)
+      })
+    } else {
+      setError(`Could not parse video ID or username from "${newVodText}"`)
+    }
+    setNewVodText("")
+  }
+
   // In charge of making sure vods maintain a single mute.
   React.useEffect(() => {
     // Set interval to watch for change in mutes.
@@ -622,6 +692,11 @@ function App() {
               width: "100%",
               fontSize: isMobile? "16px" : "auto",
             }}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                addVodHandler()
+              }
+            }}
           />
           {/* Add video button */}
           <div ref={chooseVodWindow} style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
@@ -630,75 +705,7 @@ function App() {
                 ...style.button(false),
                 marginLeft: "5px",
               }}
-              onClick={() => {
-                const vodMatch = newVodText.match(videoIdRE)
-                const usernameMatch = validUsernameRE.test(newVodText)
-                if (vodMatch !== null) {
-                  const vodId = vodMatch[2] === undefined ? vodMatch[1] : vodMatch[2]
-                  getVod(vodId)
-                  .then((vod) => {
-                    const isFirstVod = (vodState.vods.length === 0)
-                    vod.muted = !isFirstVod
-                    setVodState({
-                      active: isFirstVod ? 0 : vodState.active,
-                      vods: vodState.vods.concat(vod)
-                    })
-                  })
-                  .catch(error => {
-                    setError(`Could not add video: ${error.message}`)
-                  })
-                  ReactGA.event({
-                    category: 'Video',
-                    action: 'Add',
-                    label: vodId,
-                  });
-                } else if (usernameMatch) {
-                  // It's a valid username.
-
-                  // Get video data from username.
-                  let latestStart = new Date(0)
-                  let earliestEnd = new Date()
-                  for (let v of vodState.vods) {
-                    if (v.start > latestStart) {
-                      latestStart = v.start
-                    }
-                    if (v.end < earliestEnd) {
-                      earliestEnd = v.end
-                    }
-                  }
-                  if (latestStart > earliestEnd) {
-                    setError(`Videos are not syncable, so I won't find VODs.`)
-                    return
-                  }
-                  ReactGA.event({
-                    category: 'Video',
-                    action: 'Add',
-                    label: newVodText,
-                  });
-                  getVodsForUser(newVodText, latestStart, earliestEnd)
-                  .then(vods => {
-                    if (vods.length > 1) {
-                      setChooseVodState({show: true, vods: vods})
-                    } else if (vods.length === 1) {
-                      let vod = vods[0]
-                      const isFirstVod = (vodState.vods.length === 0)
-                      vod.muted = !isFirstVod
-                      setVodState({
-                        active: isFirstVod ? 0 : vodState.active,
-                        vods: vodState.vods.concat(vod)
-                      })
-                    } else if (vods.length === 0) {
-                      setError(`No vods from ${newVodText} occur during these videos.`)
-                    }
-                  })
-                  .catch(error => {
-                    setError(`Can't get video: ${error.message}`)
-                  })
-                } else {
-                  setError(`Could not parse video ID or username from "${newVodText}"`)
-                }
-                setNewVodText("")
-              }}
+              onClick={() => addVodHandler()}
             >
               Add Video
             </div>
