@@ -945,7 +945,7 @@ function App() {
       >
         {vodState.vods.length === 0 &&
           <div>
-            <div
+            {/* <div
               style={{
                 color: style.link.color,
                 boxShadow: `0 0 0 1px rgb(209, 160, 0)`,
@@ -969,7 +969,7 @@ function App() {
                 You can now add VODs using a streamer's name. If you have VODs open, it will automatically add a syncable VOD.
                 If you don't have anything open, it will let you choose from the streamer's last five VODs.
                 Hope you enjoy!</div>
-            </div>
+            </div> */}
             <div
               style={{
                 color: style.link.color,
